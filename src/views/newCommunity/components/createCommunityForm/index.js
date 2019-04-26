@@ -1,21 +1,24 @@
 // @flow
 import * as React from 'react';
-import Link from 'src/components/link';
+import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import compose from 'recompose/compose';
 import { withRouter } from 'react-router';
 import slugg from 'slugg';
 import { withApollo } from 'react-apollo';
-import { Notice } from '../../../../components/listItems/style';
-import Avatar from '../../../../components/avatar';
-import { throttle } from '../../../../helpers/utils';
-import { addToastWithTimeout } from '../../../../actions/toasts';
+import { Notice } from 'src/components/listItems/style';
+import { CommunityAvatar } from 'src/components/avatar';
+import { throttle } from 'src/helpers/utils';
+import { addToastWithTimeout } from 'src/actions/toasts';
 import { COMMUNITY_SLUG_BLACKLIST } from 'shared/slug-blacklists';
 import createCommunityMutation from 'shared/graphql/mutations/community/createCommunity';
 import type { CreateCommunityType } from 'shared/graphql/mutations/community/createCommunity';
 import { getCommunityBySlugQuery } from 'shared/graphql/queries/community/getCommunity';
 import { searchCommunitiesQuery } from 'shared/graphql/queries/search/searchCommunities';
-import { Button } from '../../../../components/buttons';
+import { PrimaryOutlineButton } from 'src/components/button';
+import { CommunityHoverProfile } from 'src/components/hoverProfile';
+import Icon from 'src/components/icon';
+
 import {
   Input,
   UnderlineInput,
@@ -24,7 +27,7 @@ import {
   CoverInput,
   Error,
   Checkbox,
-} from '../../../../components/formElements';
+} from 'src/components/formElements';
 import {
   ImageInputWrapper,
   Spacer,
@@ -35,6 +38,8 @@ import {
   PrivacyOption,
   PrivacyOptionLabel,
   PrivacyOptionText,
+  DeleteCoverWrapper,
+  DeleteCoverButton,
 } from './style';
 import { FormContainer, Form, Actions } from '../../style';
 import { track, events } from 'src/helpers/analytics';
@@ -119,7 +124,7 @@ class CreateCommunityForm extends React.Component<Props, State> {
       .replace(/-{2,}/g, '-');
     let slug = slugg(lowercaseName);
 
-    if (name.length >= 20) {
+    if (name.length > 20) {
       this.setState({
         nameError: true,
       });
@@ -301,6 +306,8 @@ class CreateCommunityForm extends React.Component<Props, State> {
     let reader = new FileReader();
     let file = e.target.files[0];
 
+    if (!file) return;
+
     if (file.size > 3000000) {
       return this.setState({
         photoSizeError: true,
@@ -316,12 +323,16 @@ class CreateCommunityForm extends React.Component<Props, State> {
       });
     };
 
-    reader.readAsDataURL(file);
+    if (file) {
+      reader.readAsDataURL(file);
+    }
   };
 
   setCommunityCover = e => {
     let reader = new FileReader();
     let file = e.target.files[0];
+
+    if (!file) return;
 
     if (file.size > 3000000) {
       return this.setState({
@@ -338,7 +349,14 @@ class CreateCommunityForm extends React.Component<Props, State> {
       });
     };
 
-    reader.readAsDataURL(file);
+    if (file) {
+      reader.readAsDataURL(file);
+    }
+  };
+
+  deleteCoverPhoto = e => {
+    e.preventDefault();
+    this.setState({ coverPhoto: '', coverFile: null });
   };
 
   create = e => {
@@ -456,6 +474,14 @@ class CreateCommunityForm extends React.Component<Props, State> {
       <FormContainer data-cy="create-community-form">
         <Form>
           <ImageInputWrapper>
+            {coverPhoto &&
+              !/default_images/.test(coverPhoto) && (
+                <DeleteCoverWrapper>
+                  <DeleteCoverButton onClick={e => this.deleteCoverPhoto(e)}>
+                    <Icon glyph="view-close-small" size={'16'} />
+                  </DeleteCoverButton>
+                </DeleteCoverWrapper>
+              )}
             <CoverInput
               onChange={this.setCommunityCover}
               defaultValue={coverPhoto}
@@ -464,11 +490,9 @@ class CreateCommunityForm extends React.Component<Props, State> {
             />
 
             <PhotoInput
+              type={'community'}
               onChange={this.setCommunityPhoto}
               defaultValue={image}
-              user={null}
-              community
-              allowGif
             />
           </ImageInputWrapper>
 
@@ -483,7 +507,7 @@ class CreateCommunityForm extends React.Component<Props, State> {
           <Input
             defaultValue={name}
             onChange={this.changeName}
-            autoFocus={!window.innerWidth < 768}
+            autoFocus={!(window.innerWidth < 768)}
             onBlur={this.checkSuggestedCommunities}
             dataCy="community-name-input"
           >
@@ -530,16 +554,21 @@ class CreateCommunityForm extends React.Component<Props, State> {
               communitySuggestions.map(suggestion => {
                 return (
                   <Link to={`/${suggestion.slug}`} key={suggestion.id}>
-                    <CommunitySuggestion>
-                      <Avatar
-                        size={'20'}
-                        radius={4}
-                        community={suggestion}
-                        src={suggestion.profilePhoto}
-                      />
-                      <strong>{suggestion.name}</strong>{' '}
-                      {suggestion.metaData.members.toLocaleString()} members
-                    </CommunitySuggestion>
+                    <CommunityHoverProfile
+                      id={suggestion.id}
+                      style={{ flex: '1 0 auto' }}
+                    >
+                      <CommunitySuggestion>
+                        <CommunityAvatar
+                          size={20}
+                          community={suggestion}
+                          isClickable={false}
+                          showHoverProfile={false}
+                        />
+                        <strong>{suggestion.name}</strong>{' '}
+                        {suggestion.metaData.members.toLocaleString()} members
+                      </CommunitySuggestion>
+                    </CommunityHoverProfile>
                   </Link>
                 );
               })}
@@ -640,7 +669,7 @@ class CreateCommunityForm extends React.Component<Props, State> {
 
         <Actions>
           <div />
-          <Button
+          <PrimaryOutlineButton
             onClick={this.create}
             disabled={
               slugTaken ||
@@ -653,10 +682,10 @@ class CreateCommunityForm extends React.Component<Props, State> {
               !agreeCoC
             }
             loading={isLoading}
-            dataCy="community-create-button"
+            data-cy="community-create-button"
           >
-            Create Community & Continue
-          </Button>
+            {isLoading ? 'Creating...' : 'Create Community & Continue'}
+          </PrimaryOutlineButton>
         </Actions>
       </FormContainer>
     );

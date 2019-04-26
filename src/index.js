@@ -1,6 +1,4 @@
 // @flow
-// This needs to be imported before everything else
-import './helpers/consolidate-streamed-styles';
 import 'css.escape';
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -11,72 +9,55 @@ import queryString from 'query-string';
 import Loadable from 'react-loadable';
 import * as OfflinePluginRuntime from 'offline-plugin/runtime';
 import { HelmetProvider } from 'react-helmet-async';
-import webPushManager from './helpers/web-push-manager';
-import { history } from './helpers/history';
+import webPushManager from 'src/helpers/web-push-manager';
+import { history } from 'src/helpers/history';
 import { client } from 'shared/graphql';
-import { initStore } from './store';
-import { getItemFromStorage } from './helpers/localStorage';
-import Routes from './routes';
-import { track, events } from './helpers/analytics';
+import { initStore } from 'src/store';
+import { track, events } from 'src/helpers/analytics';
 import { wsLink } from 'shared/graphql';
-import { subscribeToDesktopPush } from './subscribe-to-desktop-push';
+import { subscribeToDesktopPush } from 'src/subscribe-to-desktop-push';
+import RedirectHandler from 'src/components/redirectHandler';
+const params = queryString.parse(history.location.search);
 
-const { thread, t } = queryString.parse(history.location.search);
-
-const existingUser = getItemFromStorage('spectrum');
-let initialState;
-if (existingUser) {
-  initialState = {
-    users: {
-      currentUser: existingUser.currentUser,
-    },
-    dashboardFeed: {
-      activeThread: t ? t : '',
-      mountedWithActiveThread: t ? t : '',
-      search: {
-        isOpen: false,
-      },
-    },
-  };
-} else {
-  initialState = {};
-}
-
-if (thread) {
-  const hash = window.location.hash.substr(1);
-  if (hash && hash.length > 1) {
-    history.replace(`/thread/${thread}#${hash}`);
+// Redirect legacy ?thread=asdf & ?t=asdf URLs to the proper /<community>/<channel>/<thread>
+// equivalents via the /thread/<id> shorthand
+const threadParam = params.thread || params.t;
+if (threadParam) {
+  if (params.m) {
+    history.replace(`/thread/${threadParam}?m=${params.m}`);
   } else {
-    history.replace(`/thread/${thread}`);
+    history.replace(`/thread/${threadParam}`);
   }
 }
-if (t && (!existingUser || !existingUser.currentUser)) {
-  const hash = window.location.hash.substr(1);
-  if (hash && hash.length > 1) {
-    history.replace(`/thread/${t}#${hash}`);
-  } else {
-    history.replace(`/thread/${t}`);
-  }
-}
+// If the server passes an initial redux state use that, otherwise construct our own
+const store = initStore(window.__SERVER_STATE__ || {});
 
-const store = initStore(window.__SERVER_STATE__ || initialState);
+const App = () => {
+  return (
+    <Provider store={store}>
+      <HelmetProvider>
+        <ApolloProvider client={client}>
+          <Router history={history}>
+            <RedirectHandler
+              maintenanceMode={
+                process.env.REACT_APP_MAINTENANCE_MODE === 'enabled'
+              }
+            />
+          </Router>
+        </ApolloProvider>
+      </HelmetProvider>
+    </Provider>
+  );
+};
 
-const renderMethod = !!window.__SERVER_STATE__
+const renderMethod = window.__SERVER_STATE__
   ? // $FlowIssue
     ReactDOM.hydrate
   : ReactDOM.render;
 
 function render() {
   return renderMethod(
-    <Provider store={store}>
-      <HelmetProvider>
-        <ApolloProvider client={client}>
-          <Router history={history}>
-            <Routes />
-          </Router>
-        </ApolloProvider>
-      </HelmetProvider>
-    </Provider>,
+    <App />,
     // $FlowIssue
     document.querySelector('#root')
   );
@@ -91,10 +72,6 @@ Loadable.preloadReady()
 OfflinePluginRuntime.install({
   // Apply new updates immediately
   onUpdateReady: () => OfflinePluginRuntime.applyUpdate(),
-  // Set a global variable when an update was installed so that we can reload the page when users
-  // go to a new page, leading to no interruption in the workflow.
-  // Idea from https://zach.codes/handling-client-side-app-updates-with-service-workers/
-  onUpdated: () => (window.appUpdateAvailable = true),
 });
 
 if ('serviceWorker' in navigator && 'PushManager' in window) {

@@ -1,5 +1,6 @@
 // @flow
 const debug = require('debug')('api:utils:error-formatter');
+import { RateLimitError } from 'graphql-rate-limit';
 import Raven from 'shared/raven';
 import { IsUserError } from './UserError';
 import type { GraphQLError } from 'graphql';
@@ -31,6 +32,10 @@ const errorPath = error => {
 const logGraphQLError = (req, error) => {
   debug('---GraphQL Error---');
   debug(error);
+  error &&
+    error.extensions &&
+    error.extensions.exception &&
+    debug(error.extensions.exception.stacktrace.join('\n'));
   if (req) {
     debug(collectQueries(req.body.query));
     debug('variables', JSON.stringify(req.body.variables || {}));
@@ -45,12 +50,11 @@ const createGraphQLErrorFormatter = (req?: express$Request) => (
 ) => {
   logGraphQLError(req, error);
 
-  const isUserError = error.originalError
-    ? error.originalError[IsUserError]
-    : error[IsUserError];
+  const err = error.originalError || error;
+  const isUserError = err[IsUserError] || err instanceof RateLimitError;
 
   let sentryId = 'ID only generated in production';
-  if (!isUserError) {
+  if (!isUserError || err instanceof RateLimitError) {
     if (process.env.NODE_ENV === 'production') {
       sentryId = Raven.captureException(
         error,

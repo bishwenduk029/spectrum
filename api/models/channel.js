@@ -1,5 +1,5 @@
 // @flow
-const { db } = require('./db');
+const { db } = require('shared/db');
 import { sendChannelNotificationQueue } from 'shared/bull/queues';
 import { events } from 'shared/analytics';
 import { trackQueue } from 'shared/bull/queues';
@@ -10,13 +10,13 @@ const channelsByCommunitiesQuery = (...communityIds: string[]) =>
   db
     .table('channels')
     .getAll(...communityIds, { index: 'communityId' })
-    .filter(channel => db.not(channel.hasFields('deletedAt')));
+    .filter(channel => channel.hasFields('deletedAt').not());
 
 const channelsByIdsQuery = (...channelIds: string[]) =>
   db
     .table('channels')
     .getAll(...channelIds)
-    .filter(channel => db.not(channel.hasFields('deletedAt')));
+    .filter(channel => channel.hasFields('deletedAt').not());
 
 const threadsByChannelsQuery = (...channelIds: string[]) =>
   channelsByIdsQuery(...channelIds)
@@ -59,62 +59,52 @@ const getPublicChannelsByCommunity = (communityId: string): Promise<Array<string
 */
 // prettier-ignore
 const getChannelsByUserAndCommunity = async (communityId: string, userId: string): Promise<Array<string>> => {
-  const channels = await getChannelsByCommunity(communityId);
+  const channelIds = await channelsByCommunitiesQuery(communityId)('id').run();
 
-  const channelIds = channels.map(c => c.id);
-  const publicChannels = channels.filter(c => !c.isPrivate).map(c => c.id);
-
-  const usersChannels = await db
+  return db
     .table('usersChannels')
-    .getAll(userId, { index: 'userId' })
-    .filter(usersChannel =>
-      db.expr(channelIds).contains(usersChannel('channelId'))
-    )
-    .filter({ isMember: true })
+    .getAll(...channelIds.map(id => ([userId, id])), {
+      index: 'userIdAndChannelId',
+    })
+    .filter({ isMember: true })('channelId')
     .run();
-
-  const usersChannelsIds = usersChannels.map(c => c.channelId);
-  const allPossibleChannels = [...publicChannels, ...usersChannelsIds];
-  const distinct = allPossibleChannels.filter((x, i, a) => a.indexOf(x) === i);
-  return distinct;
 };
 
 const getChannelsByUser = (userId: string): Promise<Array<DBChannel>> => {
-  return (
-    db
-      .table('usersChannels')
-      // get all the user's channels
-      .getAll(userId, { index: 'userId' })
-      // only return channels where the user is a member
-      .filter({ isMember: true })
-      // get the channel objects for each channel
-      .eqJoin('channelId', db.table('channels'))
-      // get rid of unnecessary info from the usersChannels object on the left
-      .without({ left: ['id', 'channelId', 'userId', 'createdAt'] })
-      // zip the tables
-      .zip()
-      // ensure we don't return any deleted channels
-      .filter(channel => db.not(channel.hasFields('deletedAt')))
-      .run()
-  );
+  return db
+    .table('usersChannels')
+    .getAll([userId, 'member'], [userId, 'moderator'], [userId, 'owner'], {
+      index: 'userIdAndRole',
+    })
+    .eqJoin('channelId', db.table('channels'))
+    .without({ left: ['id', 'channelId', 'userId', 'createdAt'] })
+    .zip()
+    .filter(channel => db.not(channel.hasFields('deletedAt')))
+    .run();
 };
 
-// prettier-ignore
-const getChannelBySlug = (channelSlug: string, communitySlug: string): Promise<DBChannel> => {
+const getChannelBySlug = async (
+  channelSlug: string,
+  communitySlug: string
+): Promise<?DBChannel> => {
+  const [communityId] = await db
+    .table('communities')
+    .getAll(communitySlug, { index: 'slug' })('id')
+    .run();
+
+  if (!communityId) return null;
+
   return db
     .table('channels')
+    .getAll(communityId, { index: 'communityId' })
     .filter(channel =>
       channel('slug')
         .eq(channelSlug)
         .and(db.not(channel.hasFields('deletedAt')))
     )
-    .eqJoin('communityId', db.table('communities'))
-    .filter({ right: { slug: communitySlug } })
     .run()
-    .then(result => {
-      if (result && result[0]) {
-        return result[0].left;
-      }
+    .then(res => {
+      if (Array.isArray(res) && res.length > 0) return res[0];
       return null;
     });
 };
@@ -136,19 +126,6 @@ export type GetChannelArgs = GetChannelByIdArgs | GetChannelBySlugArgs;
 
 const getChannels = (channelIds: Array<string>): Promise<Array<DBChannel>> => {
   return channelsByIdsQuery(...channelIds).run();
-};
-
-// prettier-ignore
-const getChannelMetaData = async (channelId: string): Promise<Array<number>> => {
-  const getThreadCount = threadsByChannelsQuery(channelId)
-    .count()
-    .run();
-
-  const getMemberCount = membersByChannelsQuery(channelId)
-    .count()
-    .run();
-
-  return Promise.all([getThreadCount, getMemberCount]);
 };
 
 type GroupedCount = {
@@ -208,6 +185,7 @@ const createChannel = ({ input }: CreateChannelInput, userId: string): Promise<D
         slug,
         isPrivate,
         isDefault: isDefault ? true : false,
+        memberCount: 0,
       },
       { returnChanges: true }
     )
@@ -323,14 +301,6 @@ const deleteChannel = (channelId: string, userId: string): Promise<Boolean> => {
     });
 };
 
-const getChannelMemberCount = (channelId: string): number => {
-  return db
-    .table('channels')
-    .get(channelId)('members')
-    .count()
-    .run();
-};
-
 // prettier-ignore
 const archiveChannel = (channelId: string, userId: string): Promise<DBChannel> => {
   return db
@@ -395,10 +365,90 @@ const archiveAllPrivateChannels = async (communityId: string, userId: string) =>
   return await Promise.all([...trackingPromises, archivePromise]);
 };
 
+const incrementMemberCount = (channelId: string): Promise<DBChannel> => {
+  return db
+    .table('channels')
+    .get(channelId)
+    .update(
+      {
+        memberCount: db
+          .row('memberCount')
+          .default(0)
+          .add(1),
+      },
+      { returnChanges: true }
+    )
+    .run()
+    .then(result => result.changes[0].new_val || result.changes[0].old_val);
+};
+
+const decrementMemberCount = (channelId: string): Promise<DBChannel> => {
+  return db
+    .table('channels')
+    .get(channelId)
+    .update(
+      {
+        memberCount: db
+          .row('memberCount')
+          .default(1)
+          .sub(1),
+      },
+      { returnChanges: true }
+    )
+    .run()
+    .then(result => result.changes[0].new_val || result.changes[0].old_val);
+};
+
+const setMemberCount = (
+  channelId: string,
+  value: number
+): Promise<DBChannel> => {
+  return db
+    .table('channels')
+    .get(channelId)
+    .update(
+      {
+        memberCount: value,
+      },
+      { returnChanges: true }
+    )
+    .run()
+    .then(result => result.changes[0].new_val || result.changes[0].old_val);
+};
+
+const getChannelsOnlineMemberCounts = (channelIds: Array<string>) => {
+  return db
+    .table('usersChannels')
+    .getAll(...channelIds, {
+      index: 'channelId',
+    })
+    .filter({ isBlocked: false, isMember: true })
+    .pluck(['channelId', 'userId'])
+    .eqJoin('userId', db.table('users'))
+    .pluck('left', { right: ['lastSeen', 'isOnline'] })
+    .zip()
+    .filter(rec =>
+      rec('isOnline')
+        .eq(true)
+        .or(
+          rec('lastSeen')
+            .toEpochTime()
+            .ge(
+              db
+                .now()
+                .toEpochTime()
+                .sub(86400)
+            )
+        )
+    )
+    .group('channelId')
+    .count()
+    .run();
+};
+
 module.exports = {
   getChannelBySlug,
   getChannelById,
-  getChannelMetaData,
   getChannelsByUser,
   getChannelsByCommunity,
   getPublicChannelsByCommunity,
@@ -407,13 +457,16 @@ module.exports = {
   createGeneralChannel,
   editChannel,
   deleteChannel,
-  getChannelMemberCount,
   getChannelsMemberCounts,
   getChannelsThreadCounts,
   getChannels,
   archiveChannel,
   restoreChannel,
   archiveAllPrivateChannels,
+  incrementMemberCount,
+  decrementMemberCount,
+  setMemberCount,
+  getChannelsOnlineMemberCounts,
   __forQueryTests: {
     channelsByCommunitiesQuery,
     channelsByIdsQuery,

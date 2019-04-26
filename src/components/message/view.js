@@ -1,69 +1,83 @@
 // @flow
 import React from 'react';
 import redraft from 'redraft';
-import Icon from '../icons';
+import Icon from 'src/components/icon';
 import {
   Text,
   Emoji,
   Image,
-  ActionUI,
-  Indicator,
-  ActionWrapper,
-  ModActionWrapper,
-  Time,
   QuoteWrapper,
   QuoteWrapperGradient,
   QuotedParagraph,
 } from './style';
-import { messageRenderer } from 'shared/clients/draft-js/message/renderer.web';
-import { toPlainText, toState } from 'shared/draft-utils';
+import { messageRenderer } from 'shared/clients/draft-js/message/renderer';
 import { draftOnlyContainsEmoji } from 'shared/only-contains-emoji';
-import { Byline, Name, Username } from '../messageGroup/style';
+import { Byline, Name, Username } from './style';
 import { isShort } from 'shared/clients/draft-js/utils/isShort';
-import type { Node } from 'react';
 import type { MessageInfoType } from 'shared/graphql/fragments/message/messageInfo.js';
+import { messageTypeObj } from 'shared/draft-utils/message-types';
 
-export const Body = (props: {
+type BodyProps = {
   openGallery: Function,
   me: boolean,
   message: MessageInfoType,
   bubble?: boolean,
   showParent?: boolean,
-}) => {
+};
+
+// This regexp matches /community/channel/slug~id, /?thread=id, /?t=id etc.
+// see https://regex101.com/r/aGamna/2/
+export const Body = (props: BodyProps) => {
   const { showParent = true, message, openGallery, me, bubble = true } = props;
   const emojiOnly =
-    message.messageType === 'draftjs' &&
+    message.messageType === messageTypeObj.draftjs &&
     draftOnlyContainsEmoji(JSON.parse(message.content.body));
-  if (emojiOnly)
-    return (
-      <Emoji>{toPlainText(toState(JSON.parse(message.content.body)))}</Emoji>
-    );
   const WrapperComponent = bubble ? Text : QuotedParagraph;
   switch (message.messageType) {
-    case 'text':
+    case 'optimistic':
+      return (
+        <div key={message.id} className="markdown">
+          <WrapperComponent me={me}>
+            <div dangerouslySetInnerHTML={{ __html: message.content.body }} />
+          </WrapperComponent>
+        </div>
+      );
+    case messageTypeObj.text:
     default:
       return (
-        <WrapperComponent me={me}>{message.content.body}</WrapperComponent>
+        <WrapperComponent key={message.id} me={me}>
+          {message.content.body}
+        </WrapperComponent>
       );
-    case 'media': {
-      // don't apply imgix url params to optimistic image messages
-      const src = props.id
-        ? message.content.body
-        : `${message.content.body}?max-w=${window.innerWidth * 0.6}`;
+    case messageTypeObj.media: {
       if (typeof message.id === 'number' && message.id < 0) {
         return null;
       }
-      return <Image onClick={openGallery} src={src} />;
-    }
-    case 'draftjs': {
       return (
-        <WrapperComponent me={me}>
-          {message.parent &&
-            showParent && (
-              // $FlowIssue
-              <QuotedMessage message={message.parent} />
-            )}
-          {redraft(JSON.parse(message.content.body), messageRenderer)}
+        <Image
+          key={message.id}
+          onClick={openGallery}
+          src={message.content.body}
+        />
+      );
+    }
+    case messageTypeObj.draftjs: {
+      const parsed = JSON.parse(message.content.body);
+      return (
+        <WrapperComponent key={message.id} me={me}>
+          {message.parent && showParent && (
+            // $FlowIssue
+            <QuotedMessage message={message.parent} />
+          )}
+          {emojiOnly ? (
+            <Emoji>
+              {parsed && Array.isArray(parsed.blocks) && parsed.blocks[0].text}
+            </Emoji>
+          ) : (
+            <div key={message.id} className="markdown">
+              {redraft(parsed, messageRenderer)}
+            </div>
+          )}
         </WrapperComponent>
       );
     }
@@ -98,10 +112,13 @@ export class QuotedMessage extends React.Component<
     nextProps: QuotedMessageProps,
     nextState: QuotedMessageState
   ) {
+    const curr = this.props;
+    if (curr.message.id !== nextProps.message.id) return true;
     return nextState.isExpanded !== this.state.isExpanded;
   }
 
-  toggle = () => {
+  toggle = (e: any) => {
+    e.stopPropagation();
     if (this.state.isShort) return;
     this.setState(prev => ({ isExpanded: !prev.isExpanded }));
   };
@@ -132,89 +149,3 @@ export class QuotedMessage extends React.Component<
     );
   }
 }
-
-type ActionProps = {
-  me: boolean,
-  action: string,
-  deleteMessage?: Function,
-  replyToMessage?: Function,
-};
-
-const Action = (props: ActionProps) => {
-  const { me, action, deleteMessage, replyToMessage } = props;
-
-  switch (action) {
-    case 'share':
-    default:
-      return (
-        <ActionWrapper>
-          <Icon glyph="share" tipText={'Share'} tipLocation={'top'} size={24} />
-        </ActionWrapper>
-      );
-    case 'reply':
-      return (
-        <ActionWrapper>
-          <Icon
-            dataCy="reply-to-message"
-            glyph="reply"
-            tipText={`Reply`}
-            tipLocation={'top'}
-            size={24}
-            onClick={replyToMessage}
-          />
-        </ActionWrapper>
-      );
-    case 'delete':
-      return (
-        <ModActionWrapper me={me}>
-          <Icon
-            dataCy="delete-message"
-            glyph="delete"
-            tipText={'Delete'}
-            tipLocation={'top'}
-            size={24}
-            onClick={() => deleteMessage && deleteMessage()}
-          />
-        </ModActionWrapper>
-      );
-  }
-};
-
-export const Actions = (props: {
-  me: boolean,
-  canModerate: boolean,
-  deleteMessage?: Function,
-  replyToMessage?: Function,
-  isOptimisticMessage: boolean,
-  children: Node,
-  message: Object,
-}) => {
-  const {
-    me,
-    canModerate,
-    deleteMessage,
-    replyToMessage,
-    isOptimisticMessage,
-    message,
-  } = props;
-
-  if (isOptimisticMessage && message.messageType === 'media') {
-    return null;
-  }
-
-  return (
-    <ActionUI me={me}>
-      {props.children}
-      <Action me={me} action="reply" replyToMessage={replyToMessage} />
-      {canModerate &&
-        !isOptimisticMessage && (
-          <Action me={me} action={'delete'} deleteMessage={deleteMessage} />
-        )}
-      <Indicator me={me} />
-    </ActionUI>
-  );
-};
-
-export const Timestamp = (props: { me: boolean, time: string }) => (
-  <Time me={props.me}>{props.time}</Time>
-);

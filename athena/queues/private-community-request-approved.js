@@ -5,8 +5,8 @@ const debug = require('debug')(
 import Raven from 'shared/raven';
 import { getCommunityById } from '../models/community';
 import { storeNotification } from '../models/notification';
-import { storeUsersNotifications } from '../models/usersNotifications';
-import { getUsers } from '../models/user';
+import { storeUsersNotifications } from 'shared/db/queries/usersNotifications';
+import { getUserById } from 'shared/db/queries/user';
 import { fetchPayload } from '../utils/payloads';
 import isEmail from 'validator/lib/isEmail';
 import { sendPrivateCommunityRequestApprovedEmailQueue } from 'shared/bull/queues';
@@ -41,28 +41,29 @@ export default async (job: Job<PrivateCommunityRequestApprovedJobData>) => {
   const updatedNotification = await storeNotification(nextNotificationRecord);
 
   const community = await getCommunityById(communityId);
-  const recipients = await getUsers([userId]);
-  const filteredRecipients = recipients.filter(
-    user => user && isEmail(user.email)
-  );
-  const usersNotificationPromises = filteredRecipients.map(recipient =>
-    storeUsersNotifications(updatedNotification.id, recipient.id)
+  const recipient = await getUserById(userId);
+
+  const canSendEmail = recipient && recipient.email && isEmail(recipient.email);
+
+  const notificationPromise = storeUsersNotifications(
+    updatedNotification.id,
+    recipient.id
   );
 
-  const usersEmailPromises = filteredRecipients.map(recipient =>
+  const emailPromise =
+    canSendEmail &&
     sendPrivateCommunityRequestApprovedEmailQueue.add({
       // $FlowIssue
       recipient,
       community,
-    })
-  );
+    });
 
   return await Promise.all([
-    ...usersEmailPromises, // handle emails separately
-    ...usersNotificationPromises, // update or store usersNotifications in-app
+    emailPromise, // handle emails separately
+    notificationPromise, // update or store usersNotifications in-app
   ]).catch(err => {
-    debug('❌ Error in job:\n');
-    debug(err);
+    console.error('❌ Error in job:\n');
+    console.error(err);
     Raven.captureException(err);
   });
 };

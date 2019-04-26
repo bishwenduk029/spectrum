@@ -3,8 +3,7 @@ import * as React from 'react';
 import PageFooter from '../components/footer';
 import Section from 'src/components/themedSection';
 import { Wrapper } from '../style';
-import Link from 'src/components/link';
-import { Button } from 'src/components/buttons';
+import { OutlineButton } from 'src/components/button';
 import {
   FourUp,
   Heading,
@@ -14,6 +13,7 @@ import {
   PlanDescription,
 } from '../pricing/style';
 import { track, events } from 'src/helpers/analytics';
+import Head from 'src/components/head';
 
 class Support extends React.Component<{}> {
   componentDidMount() {
@@ -23,6 +23,11 @@ class Support extends React.Component<{}> {
   render() {
     return (
       <Wrapper data-cy="support-page">
+        <Head
+          title={'Spectrum · Support'}
+          description={'Questions, feedback, or just need to get in touch?'}
+        />
+
         <Section goop={2} color={'bg.reverse'}>
           <FourUp>
             <div style={{ gridArea: 'copy' }}>
@@ -42,15 +47,12 @@ class Support extends React.Component<{}> {
                 </PlanDescription>
               </div>
 
-              <Link to={'/spectrum/hugs-n-bugs'}>
-                <Button
-                  gradientTheme={'warn'}
-                  icon={'bug'}
-                  onClick={() => track(events.SUPPORT_PAGE_REPORT_BUG)}
-                >
-                  Join Hugs-n-Bugs
-                </Button>
-              </Link>
+              <OutlineButton
+                to="/spectrum/hugs-n-bugs"
+                onClick={() => track(events.SUPPORT_PAGE_REPORT_BUG)}
+              >
+                Join Hugs-n-Bugs
+              </OutlineButton>
             </PlanSection>
 
             <PlanSection style={{ gridArea: 'two' }}>
@@ -62,15 +64,12 @@ class Support extends React.Component<{}> {
                 </PlanDescription>
               </div>
 
-              <Link to={'/spectrum/feature-requests'}>
-                <Button
-                  gradientTheme={'space'}
-                  icon={'idea'}
-                  onClick={() => track(events.SUPPORT_PAGE_REQUEST_FEATURE)}
-                >
-                  Request a feature
-                </Button>
-              </Link>
+              <OutlineButton
+                to="/spectrum/feature-requests"
+                onClick={() => track(events.SUPPORT_PAGE_REQUEST_FEATURE)}
+              >
+                Request a feature
+              </OutlineButton>
             </PlanSection>
 
             <PlanSection style={{ gridArea: 'three' }}>
@@ -82,31 +81,21 @@ class Support extends React.Component<{}> {
                 </PlanDescription>
               </div>
 
-              <a
-                href={'https://twitter.com/withspectrum'}
-                target={'_blank'}
-                rel={'noopener noreferrer'}
+              <OutlineButton
+                href="https://twitter.com/withspectrum"
+                onClick={() => track(events.SUPPORT_PAGE_FOLLOW_ON_TWITTER)}
               >
-                <Button
-                  gradientTheme={'social.twitter'}
-                  icon={'twitter'}
-                  onClick={() => track(events.SUPPORT_PAGE_FOLLOW_ON_TWITTER)}
-                >
-                  Follow us on Twitter
-                </Button>
-              </a>
+                Follow us on Twitter
+              </OutlineButton>
 
-              <Link to={'/spectrum'}>
-                <Button
-                  gradientTheme={'brand'}
-                  icon={'logo'}
-                  onClick={() =>
-                    track(events.SUPPORT_PAGE_JOIN_SPECTRUM_COMMUNITY)
-                  }
-                >
-                  Join our community
-                </Button>
-              </Link>
+              <OutlineButton
+                to="/spectrum"
+                onClick={() =>
+                  track(events.SUPPORT_PAGE_JOIN_SPECTRUM_COMMUNITY)
+                }
+              >
+                Join our community
+              </OutlineButton>
             </PlanSection>
 
             <PlanSection style={{ gridArea: 'four' }}>
@@ -118,15 +107,12 @@ class Support extends React.Component<{}> {
                 </PlanDescription>
               </div>
 
-              <a href={'mailto:hi@spectrum.chat'}>
-                <Button
-                  gradientTheme={'special'}
-                  icon={'email'}
-                  onClick={() => track(events.SUPPORT_PAGE_EMAIL_US)}
-                >
-                  Email us
-                </Button>
-              </a>
+              <OutlineButton
+                href="mailto:hi@spectrum.chat"
+                onClick={() => track(events.SUPPORT_PAGE_EMAIL_US)}
+              >
+                Email us
+              </OutlineButton>
             </PlanSection>
           </FourUp>
         </Section>

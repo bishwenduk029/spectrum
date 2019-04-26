@@ -1,19 +1,5 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`models/channel getChannelMetaData excludes deleted channels 1`] = `
-Array [
-  0,
-  0,
-]
-`;
-
-exports[`models/channel getChannelMetaData excludes deleted threads and non-members 1`] = `
-Array [
-  4,
-  5,
-]
-`;
-
 exports[`models/channel getChannels excludes deleted channels 1`] = `
 Array [
   Object {
@@ -23,6 +9,7 @@ Array [
     "id": "1",
     "isDefault": true,
     "isPrivate": false,
+    "memberCount": 5,
     "name": "General",
     "slug": "general",
   },
@@ -39,6 +26,7 @@ Array [
     "id": "5",
     "isDefault": true,
     "isPrivate": false,
+    "memberCount": 3,
     "name": "Archived",
     "slug": "archived",
   },
@@ -49,6 +37,7 @@ Array [
     "id": "1",
     "isDefault": true,
     "isPrivate": false,
+    "memberCount": 5,
     "name": "General",
     "slug": "general",
   },
@@ -59,6 +48,7 @@ Array [
     "id": "2",
     "isDefault": false,
     "isPrivate": true,
+    "memberCount": 5,
     "name": "Private",
     "slug": "private",
   },
@@ -69,6 +59,7 @@ Array [
     "id": "8",
     "isDefault": false,
     "isPrivate": false,
+    "memberCount": 1,
     "name": "Moderator created",
     "slug": "moderator-created",
   },
@@ -89,9 +80,27 @@ Array [
     "isOwner": false,
     "isPending": false,
     "isPrivate": true,
+    "memberCount": 5,
     "name": "Private",
     "receiveNotifications": true,
     "slug": "private",
+  },
+  Object {
+    "communityId": "5",
+    "createdAt": 2016-12-31T23:00:00.000Z,
+    "description": "General",
+    "id": "11",
+    "isBlocked": false,
+    "isDefault": false,
+    "isMember": true,
+    "isModerator": false,
+    "isOwner": false,
+    "isPending": false,
+    "isPrivate": false,
+    "memberCount": 1,
+    "name": "General",
+    "receiveNotifications": false,
+    "slug": "general",
   },
   Object {
     "communityId": "1",
@@ -105,6 +114,7 @@ Array [
     "isOwner": false,
     "isPending": false,
     "isPrivate": true,
+    "memberCount": 5,
     "name": "Private",
     "receiveNotifications": true,
     "slug": "private",
@@ -121,9 +131,27 @@ Array [
     "isOwner": false,
     "isPending": false,
     "isPrivate": false,
+    "memberCount": 5,
     "name": "General",
     "receiveNotifications": true,
     "slug": "general",
+  },
+  Object {
+    "communityId": "2",
+    "createdAt": 2016-12-31T23:00:00.000Z,
+    "description": "Payments Features",
+    "id": "10",
+    "isBlocked": false,
+    "isDefault": false,
+    "isMember": true,
+    "isModerator": false,
+    "isOwner": true,
+    "isPending": false,
+    "isPrivate": false,
+    "memberCount": 5,
+    "name": "Payments Features",
+    "receiveNotifications": true,
+    "slug": "features",
   },
   Object {
     "communityId": "2",
@@ -137,6 +165,7 @@ Array [
     "isOwner": false,
     "isPending": false,
     "isPrivate": false,
+    "memberCount": 5,
     "name": "General",
     "receiveNotifications": true,
     "slug": "general",
@@ -146,10 +175,9 @@ Array [
 
 exports[`models/channel getChannelsByUserAndCommunity returns correct set of channels 1`] = `
 Array [
-  "5",
-  "1",
-  "8",
   "2",
+  "1",
+  "5",
 ]
 `;
 

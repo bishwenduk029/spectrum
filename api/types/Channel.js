@@ -22,7 +22,9 @@ const Channel = /* GraphQL */ `
 
   type ChannelMetaData {
     threads: Int
+      @deprecated(reason: "metaData.threads is deprecated and always returns 0")
     members: Int
+    onlineMembers: Int
   }
 
   input CreateChannelInput {
@@ -58,7 +60,7 @@ const Channel = /* GraphQL */ `
     userId: ID!
   }
 
-  type Channel {
+  type Channel @cacheControl(maxAge: 1200) {
     id: ID!
     createdAt: Date!
     modifiedAt: Date
@@ -69,22 +71,29 @@ const Channel = /* GraphQL */ `
     isDefault: Boolean
     isArchived: Boolean
     channelPermissions: ChannelPermissions! @cost(complexity: 1)
+
     communityPermissions: CommunityPermissions!
-    community: Community! @cost(complexity: 1)
-    threadConnection(first: Int = 10, after: String): ChannelThreadsConnection! @cost(complexity: 1, multiplier: "first")
-    memberConnection(first: Int = 10, after: String): ChannelMembersConnection! @cost(complexity: 1, multiplier: "first")
+    community: Community! @cost(complexity: 1) @cacheControl(maxAge: 86400)
+    threadConnection(first: Int = 10, after: String): ChannelThreadsConnection!
+      @cost(complexity: 1, multipliers: ["first"])
+    memberConnection(first: Int = 10, after: String): ChannelMembersConnection!
+      @cost(complexity: 1, multipliers: ["first"])
     memberCount: Int!
     metaData: ChannelMetaData @cost(complexity: 1)
-    pendingUsers: [User] @cost(complexity: 3)
-    blockedUsers: [User] @cost(complexity: 3)
+    pendingUsers: [User] @cost(complexity: 3) @cacheControl(maxAge: 0)
+    blockedUsers: [User] @cost(complexity: 3) @cacheControl(maxAge: 0)
     moderators: [User] @cost(complexity: 3)
     owners: [User] @cost(complexity: 3)
-    joinSettings: JoinSettings 
+    joinSettings: JoinSettings
     slackSettings: ChannelSlackSettings
   }
 
   extend type Query {
-    channel(id: ID, channelSlug: LowercaseString, communitySlug: LowercaseString): Channel @cost(complexity: 1)
+    channel(
+      id: ID
+      channelSlug: LowercaseString
+      communitySlug: LowercaseString
+    ): Channel @cost(complexity: 1) @cacheControl(maxAge: 1200)
   }
 
   input ArchiveChannelInput {
@@ -115,6 +124,7 @@ const Channel = /* GraphQL */ `
 
   extend type Mutation {
     createChannel(input: CreateChannelInput!): Channel
+      @rateLimit(max: 10, window: "10m")
     editChannel(input: EditChannelInput!): Channel
     deleteChannel(channelId: ID!): Boolean
     toggleChannelSubscription(channelId: ID!): Channel

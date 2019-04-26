@@ -27,8 +27,8 @@ const User = require('./types/User');
 const DirectMessageThread = require('./types/DirectMessageThread');
 const Notification = require('./types/Notification');
 const Meta = require('./types/Meta');
-const Invoice = require('./types/Invoice');
 const Search = require('./types/Search');
+const Invoice = require('./types/Invoice');
 const CommunityMember = require('./types/CommunityMember');
 const ThreadParticipant = require('./types/ThreadParticipant');
 
@@ -49,7 +49,6 @@ const channelSlackSettingsQueries = require('./queries/channelSlackSettings');
 const messageMutations = require('./mutations/message');
 const threadMutations = require('./mutations/thread');
 const reactionMutations = require('./mutations/reaction');
-const recurringPaymentMutations = require('./mutations/recurringPayment');
 const communityMutations = require('./mutations/community');
 const channelMutations = require('./mutations/channel');
 const directMessageThreadMutations = require('./mutations/directMessageThread');
@@ -57,13 +56,27 @@ const notificationMutations = require('./mutations/notification');
 const userMutations = require('./mutations/user');
 const metaMutations = require('./mutations/meta');
 const communityMemberMutations = require('./mutations/communityMember');
+const fileMutations = require('./mutations/files');
 
 const messageSubscriptions = require('./subscriptions/message');
 const notificationSubscriptions = require('./subscriptions/notification');
 const directMessageThreadSubscriptions = require('./subscriptions/directMessageThread');
 const threadSubscriptions = require('./subscriptions/thread');
+const communitySubscriptions = require('./subscriptions/community');
+
+const rateLimit = require('./utils/rate-limit-directive').default;
+
+const IS_PROD = process.env.NODE_ENV === 'production' && !process.env.FORCE_DEV;
 
 const Root = /* GraphQL */ `
+  directive @rateLimit(
+    max: Int
+    window: Int
+    message: String
+    identityArgs: [String]
+    arrayLengthField: String
+  ) on FIELD_DEFINITION
+
   # The dummy queries and mutations are necessary because
   # graphql-js cannot have empty root types and we only extend
   # these types later on
@@ -109,18 +122,19 @@ const resolvers = merge(
   threadMutations,
   directMessageThreadMutations,
   reactionMutations,
-  recurringPaymentMutations,
   communityMutations,
   channelMutations,
   notificationMutations,
   userMutations,
   metaMutations,
   communityMemberMutations,
+  fileMutations,
   // subscriptions
   messageSubscriptions,
   notificationSubscriptions,
   directMessageThreadSubscriptions,
-  threadSubscriptions
+  threadSubscriptions,
+  communitySubscriptions
 );
 
 if (process.env.NODE_ENV === 'development' && debug.enabled) {
@@ -151,6 +165,20 @@ const schema = makeExecutableSchema({
     Search,
   ],
   resolvers,
+  schemaDirectives: IS_PROD
+    ? {
+        rateLimit,
+      }
+    : {},
 });
+
+if (process.env.REACT_APP_MAINTENANCE_MODE === 'enabled') {
+  console.error('\n\n⚠️ ----MAINTENANCE MODE ENABLED----⚠️\n\n');
+  addSchemaLevelResolveFunction(schema, () => {
+    throw new UserError(
+      "We're currently undergoing planned maintenance. We'll be back soon, please check https://twitter.com/withspectrum for ongoing updates!"
+    );
+  });
+}
 
 module.exports = schema;

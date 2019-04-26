@@ -3,9 +3,9 @@ export const theme = {
   bg: {
     default: '#FFFFFF',
     reverse: '#16171A',
-    wash: '#F5F8FC',
-    border: '#DFE7EF',
-    hairline: '#A3AFBF',
+    wash: '#FAFAFA',
+    divider: '#F6F7F8',
+    border: '#EBECED',
     inactive: '#DFE7EF',
   },
   brand: {
@@ -63,18 +63,28 @@ export const theme = {
     border: '#9FF5D9',
   },
   text: {
-    default: '#16171A',
-    alt: '#828C99',
+    default: '#24292E',
+    secondary: '#384047',
+    alt: '#67717A',
+    placeholder: '#7C8894',
     reverse: '#FFFFFF',
-    placeholder: '#A3AFBF',
-    secondary: '#494C57',
   },
   warn: {
-    default: '#C21F3A',
+    default: '#E22F2F',
     alt: '#E2197A',
     dark: '#85000C',
     wash: '#FFEDF6',
     border: '#FFCCE5',
+  },
+  ios: {
+    red: '#FF3B30',
+    orange: '#FF9500',
+    yellow: '#FFCC00',
+    green: '#4CD964',
+    tealBlue: '#5AC8FA',
+    blue: '#007AFF',
+    purple: '#5856D6',
+    pink: '#FF2D55',
   },
 };
 

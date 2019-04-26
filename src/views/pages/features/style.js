@@ -1,5 +1,6 @@
 import styled, { css } from 'styled-components';
-import { SvgWrapper } from 'src/components/icons';
+import theme from 'shared/theme';
+import { SvgWrapper } from 'src/components/icon';
 
 /* eslint no-eval: 0 */
 
@@ -28,20 +29,11 @@ export const TextContent = styled.div`
   grid-area: copy;
   justify-self: center;
   z-index: 1;
-  text-shadow: 0 0 4px ${props => props.theme.bg.default};
+  text-shadow: 0 0 4px ${theme.bg.default};
   max-width: 560px;
 
   > a {
     display: inline-block;
-
-    > button {
-      padding: 8px 16px 8px 8px;
-
-      > span {
-        font-size: 16px;
-        margin-left: 16px;
-      }
-    }
   }
 
   @media (max-width: 1480px) {
@@ -220,7 +212,7 @@ export const FeatureName = styled.span`
         font-size: 12px;
         background-color: ${props =>
           props.bright ? props.theme.success.alt : props.theme.space.dark};
-        color: ${props => props.theme.text.reverse};
+        color: ${theme.text.reverse};
         padding: 4px 8px;
         border-radius: 16px;
         position: relative;
@@ -234,7 +226,7 @@ export const FeatureName = styled.span`
 
 export const EtcName = styled(FeatureName)`
   font-size: 20px;
-  color: ${props => props.theme.text.default};
+  color: ${theme.text.default};
   line-height: 1.2;
 `;
 
@@ -267,7 +259,7 @@ export const EtcCTA = styled.div`
   flex-direction: column;
   align-self: stretch;
   align-items: center;
-  margin-bottom: 80px;
+  margin-bottom: 108px;
 
   > span {
     margin-top: 32px;
@@ -277,15 +269,6 @@ export const EtcCTA = styled.div`
 
   > a {
     display: inline-block;
-
-    > button {
-      padding: 8px 16px 8px 8px;
-
-      > span {
-        font-size: 16px;
-        margin-left: 16px;
-      }
-    }
   }
 `;
 

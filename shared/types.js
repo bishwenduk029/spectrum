@@ -6,6 +6,7 @@
   attempt to use or update the types here
 
 */
+import type { MessageType } from 'shared/draft-utils/message-types';
 
 export type DBChannel = {
   communityId: string,
@@ -19,6 +20,7 @@ export type DBChannel = {
   name: string,
   slug: string,
   archivedAt?: Date,
+  memberCount: number,
 };
 
 export type DBCommunity = {
@@ -36,12 +38,9 @@ export type DBCommunity = {
   watercoolerId?: string,
   creatorId: string,
   administratorEmail: ?string,
-  hasAnalytics: boolean,
-  hasPrioritySupport: boolean,
-  stripeCustomerId: ?string,
   pendingAdministratorEmail?: string,
-  ossVerified?: boolean,
   isPrivate: boolean,
+  memberCount: number,
 };
 
 export type DBCommunitySettings = {
@@ -94,21 +93,11 @@ export type DBDirectMessageThread = {
   threadLastActive: Date,
 };
 
-export type DBInvoice = {
-  amount: number,
-  chargeId: string,
-  communityId?: string,
-  customerId: string,
-  id: string,
-  paidAt: Date,
-  planId: 'beta-pro' | 'community-standard',
-  planName: string,
-  quantity: number,
-  sourceBrand: string,
-  sourceLast4: string,
-  status: string,
-  subscriptionId: string,
-  userId: string,
+type DBMessageEdits = {
+  content: {
+    body: string,
+  },
+  timestamp: string,
 };
 
 export type DBMessage = {
@@ -116,7 +105,7 @@ export type DBMessage = {
     body: string,
   },
   id: string,
-  messageType: 'text' | 'media' | 'draftjs',
+  messageType: MessageType,
   senderId: string,
   deletedAt?: Date,
   deletedBy?: string,
@@ -124,10 +113,13 @@ export type DBMessage = {
   threadType: 'story' | 'directMessageThread',
   timestamp: Date,
   parentId?: string,
+  edits?: Array<DBMessageEdits>,
+  modifiedAt?: string,
 };
 
 export type NotificationPayloadType =
   | 'REACTION'
+  | 'THREAD_REACTION'
   | 'MESSAGE'
   | 'THREAD'
   | 'CHANNEL'
@@ -137,6 +129,7 @@ export type NotificationPayloadType =
 
 export type NotificationEventType =
   | 'REACTION_CREATED'
+  | 'THREAD_REACTION_CREATED'
   | 'MESSAGE_CREATED'
   | 'THREAD_CREATED'
   | 'CHANNEL_CREATED'
@@ -178,23 +171,15 @@ export type DBReaction = {
   userId: string,
 };
 
-export type DBRecurringPayment = {
+export type DBThreadReaction = {
   id: string,
-  amount: number,
-  canceledAt?: Date,
+  threadId: string,
   createdAt: Date,
-  currentPeriodEnd: Date,
-  currentPeriodStart: Date,
-  customerId: string,
-  planId: 'beta-pro' | 'community-standard',
-  planName: string,
-  quantity: number,
-  sourceBrand: string,
-  sourceLast4: string,
-  status: 'active' | 'canceled',
-  subscriptionId: string,
+  type: ReactionType,
+  deletedAt?: Date,
+  score?: number,
+  scoreUpdatedAt?: Date,
   userId: string,
-  communityId?: string,
 };
 
 export type DBReputationEvent = {
@@ -255,6 +240,7 @@ export type DBThread = {
   isLocked: boolean,
   lockedBy?: string,
   lockedAt?: Date,
+  editedBy?: string,
   lastActive: Date,
   modifiedAt?: Date,
   deletedAt?: string,
@@ -262,6 +248,8 @@ export type DBThread = {
   attachments?: Array<DBThreadAttachment>,
   edits?: Array<DBThreadEdits>,
   watercooler?: boolean,
+  messageCount: number,
+  reactionCount: number,
   type: string,
 };
 
@@ -284,6 +272,7 @@ export type DBUser = {
   description?: ?string,
   website?: ?string,
   modifiedAt: ?string,
+  betaSupporter?: boolean,
 };
 
 export type DBUsersChannels = {
@@ -403,17 +392,6 @@ export type DBExpoPushSubscription = {
   userId: string,
 };
 
-export type DBStripeCustomer = {
-  created: number,
-  currency: ?string,
-  customerId: string,
-  email: string,
-  metadata: {
-    communityId?: string,
-    communityName?: string,
-  },
-};
-
 export type FileUpload = {
   filename: string,
   mimetype: string,
@@ -422,3 +400,22 @@ export type FileUpload = {
 };
 
 export type EntityTypes = 'communities' | 'channels' | 'users' | 'threads';
+
+export type DBCoreMetric = {
+  dau: number,
+  wau: number,
+  mau: number,
+  dac: number,
+  dacSlugs: Array<string>,
+  wac: number,
+  wacSlugs: Array<string>,
+  mac: number,
+  macSlugs: Array<string>,
+  cpu: number,
+  mpu: number,
+  tpu: number,
+  users: number,
+  communities: number,
+  threads: number,
+  dmThreads: number,
+};

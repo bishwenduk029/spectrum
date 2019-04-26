@@ -10,8 +10,7 @@ const enable = () => {
 
   cy.get('[data-cy="login-with-token-settings"]').scrollIntoView();
 
-  cy
-    .get('[data-cy="toggle-token-link-invites-unchecked"]')
+  cy.get('[data-cy="toggle-token-link-invites-unchecked"]')
     .should('be.visible')
     .click();
 
@@ -20,8 +19,9 @@ const enable = () => {
 
 describe('private community invite link settings', () => {
   beforeEach(() => {
-    cy.auth(ownerInCommunityId);
-    cy.visit(`/${community.slug}/settings/members`);
+    cy.auth(ownerInCommunityId).then(() =>
+      cy.visit(`/${community.slug}/settings/members`)
+    );
   });
 
   it('should handle enable, reset, and disable', () => {
@@ -30,8 +30,7 @@ describe('private community invite link settings', () => {
 
     // reset token
     cy.get('[data-cy="login-with-token-settings"]').scrollIntoView();
-    cy
-      .get('[data-cy="join-link-input"]')
+    cy.get('[data-cy="join-link-input"]')
       .invoke('val')
       .then(val1 => {
         // do more work here
@@ -43,8 +42,8 @@ describe('private community invite link settings', () => {
 
         // grab the input again and compare its previous value
         // to the current value
-        cy
-          .get('[data-cy="join-link-input"]')
+        cy.get('[data-cy="join-link-input"]')
+          .scrollIntoView()
           .invoke('val')
           .should(val2 => {
             expect(val1).not.to.eq(val2);
@@ -52,8 +51,8 @@ describe('private community invite link settings', () => {
       });
 
     // disable
-    cy
-      .get('[data-cy="toggle-token-link-invites-checked"]')
+    cy.get('[data-cy="toggle-token-link-invites-checked"]')
+      .scrollIntoView()
       .should('be.visible')
       .click();
 

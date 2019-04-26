@@ -1,5 +1,5 @@
 // @flow
-const { db } = require('./db');
+const { db } = require('shared/db');
 import intersection from 'lodash.intersection';
 import { parseRange } from './utils';
 import { uploadImage } from '../utils/file-storage';
@@ -7,8 +7,10 @@ import getRandomDefaultPhoto from '../utils/get-random-default-photo';
 import {
   sendNewCommunityWelcomeEmailQueue,
   _adminSendCommunityCreatedEmailQueue,
+  searchQueue,
+  trackQueue,
 } from 'shared/bull/queues';
-import { trackQueue } from 'shared/bull/queues';
+import { createChangefeed } from 'shared/changefeed-utils';
 import { events } from 'shared/analytics';
 import type { DBCommunity, DBUser } from 'shared/types';
 import type { Timeframe } from './utils';
@@ -60,9 +62,7 @@ export const getCommunitiesByUser = (userId: string): Promise<Array<DBCommunity>
     db
       .table('usersCommunities')
       // get all the user's communities
-      .getAll(userId, { index: 'userId' })
-      // only return communities the user is a member of
-      .filter({ isMember: true })
+      .getAll([userId, true], { index: 'userIdAndIsMember' })
       // get the community objects for each community
       .eqJoin('communityId', db.table('communities'))
       // get rid of unnecessary info from the usersCommunities object on the left
@@ -80,9 +80,7 @@ export const getVisibleCommunitiesByUser = async (evaluatingUserId: string, curr
   const evaluatingUserMemberships = await db
     .table('usersCommunities')
     // get all the user's communities
-    .getAll(evaluatingUserId, { index: 'userId' })
-    // only return communities the user is a member of
-    .filter({ isMember: true })
+    .getAll([evaluatingUserId, true], { index: 'userIdAndIsMember' })
     // get the community objects for each community
     .eqJoin('communityId', db.table('communities'))
     // get rid of unnecessary info from the usersCommunities object on the left
@@ -96,9 +94,7 @@ export const getVisibleCommunitiesByUser = async (evaluatingUserId: string, curr
   const currentUserMemberships = await db
     .table('usersCommunities')
     // get all the user's communities
-    .getAll(currentUserId, { index: 'userId' })
-    // only return communities the user is a member of
-    .filter({ isMember: true })
+    .getAll([currentUserId, true], { index: 'userIdAndIsMember' })
     // get the community objects for each community
     .eqJoin('communityId', db.table('communities'))
     // get rid of unnecessary info from the usersCommunities object on the left
@@ -118,7 +114,7 @@ export const getVisibleCommunitiesByUser = async (evaluatingUserId: string, curr
   const overlappingMemberships = intersection(evaluatingUserCommunityIds, currentUserCommunityIds)
   const allVisibleCommunityIds = [...publicCommunityIds, ...overlappingMemberships]
   const distinctCommunityIds = allVisibleCommunityIds.filter((x, i, a) => a.indexOf(x) === i)
-  
+
   return await db
     .table('communities')
     .getAll(...distinctCommunityIds)
@@ -129,9 +125,7 @@ export const getPublicCommunitiesByUser = async (userId: string) => {
   return await db
     .table('usersCommunities')
     // get all the user's communities
-    .getAll(userId, { index: 'userId' })
-    // only return communities the user is a member of
-    .filter({ isMember: true })
+    .getAll([userId, true], { index: 'userIdAndIsMember' })
     // get the community objects for each community
     .eqJoin('communityId', db.table('communities'))
     // only return public community ids
@@ -158,38 +152,52 @@ export const getCommunitiesChannelCounts = (communityIds: Array<string>) => {
 export const getCommunitiesMemberCounts = (communityIds: Array<string>) => {
   return db
     .table('usersCommunities')
-    .getAll(...communityIds, { index: 'communityId' })
-    .filter({ isBlocked: false, isMember: true })
+    .getAll(...communityIds.map(id => [id, true]), {
+      index: 'communityIdAndIsMember',
+    })
     .group('communityId')
     .count()
     .run();
 };
 
-// prettier-ignore
-export const getCommunityMetaData = (communityId: string): Promise<Array<number>> => {
-  const getChannelCount = db
-    .table('channels')
-    .getAll(communityId, { index: 'communityId' })
-    .filter(channel => db.not(channel.hasFields('deletedAt')))
-    .count()
-    .run();
-
-  const getMemberCount = db
-    .table('usersCommunities')
-    .getAll(communityId, { index: 'communityId' })
-    .filter({ isBlocked: false, isMember: true })
-    .count()
-    .run();
-
-  return Promise.all([getChannelCount, getMemberCount]);
-};
-
-export const getMemberCount = (communityId: string): Promise<number> => {
+export const getCommunitiesOnlineMemberCounts = (
+  communityIds: Array<string>
+) => {
   return db
     .table('usersCommunities')
-    .getAll(communityId, { index: 'communityId' })
-    .filter({ isBlocked: false, isMember: true })
+    .getAll(...communityIds.map(id => [id, true]), {
+      index: 'communityIdAndIsMember',
+    })
+    .pluck(['communityId', 'userId'])
+    .eqJoin('userId', db.table('users'))
+    .pluck('left', { right: ['lastSeen', 'isOnline'] })
+    .zip()
+    .filter(rec =>
+      rec('isOnline')
+        .eq(true)
+        .or(
+          rec('lastSeen')
+            .toEpochTime()
+            .ge(
+              db
+                .now()
+                .toEpochTime()
+                .sub(86400)
+            )
+        )
+    )
+    .group('communityId')
     .count()
+    .run();
+};
+
+export const setCommunityLastActive = (id: string, lastActive: Date) => {
+  return db
+    .table('communities')
+    .get(id)
+    .update({
+      lastActive: new Date(lastActive),
+    })
     .run();
 };
 
@@ -213,7 +221,9 @@ export type EditCommunityInput = {
     website: string,
     file: Object,
     coverFile: Object,
+    coverPhoto: string,
     communityId: string,
+    watercoolerId?: boolean,
   },
 };
 
@@ -235,8 +245,8 @@ export const createCommunity = ({ input }: CreateCommunityInput, user: DBUser): 
         modifiedAt: null,
         creatorId: user.id,
         administratorEmail: user.email,
-        stripeCustomerId: null,
-        isPrivate
+        isPrivate,
+        memberCount: 0,
       },
       { returnChanges: true }
     )
@@ -248,6 +258,12 @@ export const createCommunity = ({ input }: CreateCommunityInput, user: DBUser): 
         event: events.COMMUNITY_CREATED,
         context: { communityId: community.id },
       });
+
+      searchQueue.add({
+        id: community.id,
+        type: 'community',
+        event: 'created'
+      })
 
       // send a welcome email to the community creator
       sendNewCommunityWelcomeEmailQueue.add({ user, community });
@@ -405,163 +421,92 @@ export const createCommunity = ({ input }: CreateCommunityInput, user: DBUser): 
 };
 
 // prettier-ignore
-export const editCommunity = ({ input }: EditCommunityInput, userId: string): Promise<DBCommunity> => {
-  const { name, slug, description, website, file, coverFile, communityId } = input
+export const editCommunity = async ({ input }: EditCommunityInput, userId: string): Promise<DBCommunity> => {
+  const { name, slug, description, website, watercoolerId, file, coverPhoto, coverFile, communityId } = input
+
+  let community = await db.table('communities').get(communityId).run()
+
+  // if the input comes in with a coverPhoto of length 0 (empty string), it means
+  // the user was trying to delete or reset their cover photo from the front end.
+  // in this case we can just set a new default. Otherwise, just keep their
+  // original cover photo
+  let updatedCoverPhoto = community.coverPhoto
+  if (input.coverPhoto.length === 0) {
+    ({ coverPhoto: updatedCoverPhoto } = getRandomDefaultPhoto())
+  }
 
   return db
     .table('communities')
     .get(communityId)
+    .update({
+      ...community,
+      name,
+      slug,
+      description,
+      website,
+      watercoolerId: watercoolerId || community.watercoolerId,
+      coverPhoto: coverFile 
+        ? await uploadImage(coverFile, 'communities', community.id) 
+        : updatedCoverPhoto,
+      profilePhoto: file 
+        ? await uploadImage(file, 'communities', community.id) 
+        : community.profilePhoto,
+      modifiedAt: new Date()
+    }, { returnChanges: 'always' })
     .run()
     .then(result => {
-      return Object.assign({}, result, {
-        name,
-        slug,
-        description,
-        website,
-        modifiedAt: new Date(),
-      });
+      if (result.replaced === 1) {
+        community = result.changes[0].new_val;
+        trackQueue.add({
+          userId,
+          event: events.COMMUNITY_EDITED,
+          context: { communityId }
+        })
+      }
+
+      // an update was triggered from the client, but no data was changed
+      if (result.unchanged === 1) {
+        community = result.changes[0].old_val;
+        trackQueue.add({
+          userId,
+          event: events.COMMUNITY_EDITED_FAILED,
+          context: { communityId },
+          properties: {
+            reason: 'no changes'
+          }
+        })
+      }
+
+      searchQueue.add({
+        id: communityId,
+        type: 'community',
+        event: 'edited'
+      })
+
+      return community
     })
-    .then(community => {
-      // if no file was uploaded, update the community with new string values
-      if (!file && !coverFile) {
-        return db
-          .table('communities')
-          .get(communityId)
-          .update({ ...community }, { returnChanges: 'always' })
-          .run()
-          .then(result => {
-            // if an update happened
-            if (result.replaced === 1) {
-              trackQueue.add({
-                userId,
-                event: events.COMMUNITY_EDITED,
-                context: { communityId }
-              })
-              return result.changes[0].new_val;
-            }
+};
 
-            // an update was triggered from the client, but no data was changed
-            if (result.unchanged === 1) {
-              trackQueue.add({
-                userId,
-                event: events.COMMUNITY_EDITED_FAILED,
-                context: { communityId },
-                properties: {
-                  reason: 'no changes'
-                }
-              })
-              return result.changes[0].old_val;
-            }
-          });
+export const setCommunityWatercoolerId = (
+  communityId: string,
+  threadId: ?string
+) => {
+  return db
+    .table('communities')
+    .get(communityId)
+    .update(
+      {
+        watercoolerId: threadId,
+      },
+      {
+        returnChanges: true,
       }
-
-      if (file || coverFile) {
-        if (file && !coverFile) {
-          return uploadImage(file, 'communities', community.id).then(
-            profilePhoto => {
-              // update the community with the profilePhoto
-              return (
-                db
-                  .table('communities')
-                  .get(community.id)
-                  .update(
-                    {
-                      ...community,
-                      profilePhoto,
-                    },
-                    { returnChanges: 'always' }
-                  )
-                  .run()
-                  // return the resulting community with the profilePhoto set
-                  .then(result => {
-                    // if an update happened
-                    if (result.replaced === 1) {
-                      return result.changes[0].new_val;
-                    }
-
-                    // an update was triggered from the client, but no data was changed
-                    if (result.unchanged === 1) {
-                      return result.changes[0].old_val;
-                    }
-                  })
-              );
-            }
-          );
-        } else if (!file && coverFile) {
-          return uploadImage(coverFile, 'communities', community.id).then(
-            coverPhoto => {
-              // update the community with the profilePhoto
-              return (
-                db
-                  .table('communities')
-                  .get(community.id)
-                  .update(
-                    {
-                      ...community,
-                      coverPhoto,
-                    },
-                    { returnChanges: 'always' }
-                  )
-                  .run()
-                  // return the resulting community with the profilePhoto set
-                  .then(result => {
-                    // if an update happened
-                    if (result.replaced === 1) {
-                      return result.changes[0].new_val;
-                    }
-
-                    // an update was triggered from the client, but no data was changed
-                    if (result.unchanged === 1) {
-                      return result.changes[0].old_val;
-                    }
-                  })
-              );
-            }
-          );
-        } else if (file && coverFile) {
-          const uploadFile = file => {
-            return uploadImage(file, 'communities', community.id);
-          };
-
-          const uploadCoverFile = coverFile => {
-            return uploadImage(coverFile, 'communities', community.id);
-          };
-
-          return Promise.all([
-            uploadFile(file),
-            uploadCoverFile(coverFile),
-          ]).then(([profilePhoto, coverPhoto]) => {
-            return (
-              db
-                .table('communities')
-                .get(community.id)
-                .update(
-                  {
-                    ...community,
-                    coverPhoto,
-                    profilePhoto,
-                  },
-                  { returnChanges: 'always' }
-                )
-                .run()
-                // return the resulting community with the profilePhoto set
-                .then(result => {
-                  // if an update happened
-                  if (result.replaced === 1) {
-                    return result.changes[0].new_val;
-                  }
-
-                  // an update was triggered from the client, but no data was changed
-                  if (result.unchanged === 1) {
-                    return result.changes[0].old_val;
-                  }
-
-                  return null;
-                })
-            );
-          });
-        }
-      }
+    )
+    .run()
+    .then(result => {
+      if (!Array.isArray(result.changes) || result.changes.length === 0)
+        return getCommunityById(communityId);
+      return result.changes[0].new_val;
     });
 };
 
@@ -588,6 +533,12 @@ export const deleteCommunity = (communityId: string, userId: string): Promise<DB
         event: events.COMMUNITY_DELETED,
         context: { communityId },
       });
+
+      searchQueue.add({
+        id: communityId,
+        type: 'community',
+        event: 'deleted'
+      })
     });
 };
 
@@ -731,91 +682,73 @@ export const resetCommunityAdministratorEmail = (communityId: string) => {
     .run();
 };
 
-// prettier-ignore
-export const setStripeCustomerId = (communityId: string, stripeCustomerId: string): Promise<DBCommunity> => {
+export const incrementMemberCount = (
+  communityId: string
+): Promise<DBCommunity> => {
   return db
     .table('communities')
     .get(communityId)
     .update(
       {
-        stripeCustomerId,
+        memberCount: db
+          .row('memberCount')
+          .default(0)
+          .add(1),
       },
-      {
-        returnChanges: 'always',
-      }
+      { returnChanges: true }
     )
     .run()
     .then(result => result.changes[0].new_val || result.changes[0].old_val);
 };
 
-// prettier-ignore
-export const disablePaidFeatureFlags = (communityId: string, userId: string): Promise<DBCommunity> => {
+export const decrementMemberCount = (
+  communityId: string
+): Promise<DBCommunity> => {
   return db
     .table('communities')
     .get(communityId)
-    .update({
-      analyticsEnabled: false,
-      prioritySupportEnabled: false,
-    })
+    .update(
+      {
+        memberCount: db
+          .row('memberCount')
+          .default(1)
+          .sub(1),
+      },
+      { returnChanges: true }
+    )
     .run()
-    .then(async () => {
-      trackQueue.add({
-        userId,
-        event: events.COMMUNITY_ANALYTICS_DISABLED,
-        context: { communityId }
-      })
-
-      trackQueue.add({
-        userId,
-        event: events.COMMUNITY_PRIORITY_SUPPORT_DISABLED,
-        context: { communityId }
-      })
-
-      return await getCommunityById(communityId)
-    })
+    .then(result => result.changes[0].new_val || result.changes[0].old_val);
 };
 
-export const updateCommunityPaidFeature = (
+export const setMemberCount = (
   communityId: string,
-  feature: string,
-  value: boolean,
-  userId: string
+  value: number
 ): Promise<DBCommunity> => {
-  const obj = { [feature]: value };
   return db
     .table('communities')
     .get(communityId)
-    .update(obj, { returnChanges: 'always' })
+    .update(
+      {
+        memberCount: value,
+      },
+      { returnChanges: true }
+    )
     .run()
-    .then(result => {
-      if (result && result.changes.length > 0) {
-        switch (feature) {
-          case 'analyticsEnabled': {
-            trackQueue.add({
-              userId,
-              event: value
-                ? events.COMMUNITY_ANALYTICS_ENABLED
-                : events.COMMUNITY_ANALYTICS_DISABLED,
-              context: { communityId },
-            });
-            break;
-          }
-          case 'prioritySupportEnabled': {
-            trackQueue.add({
-              userId,
-              event: value
-                ? events.COMMUNITY_PRIORITY_SUPPORT_ENABLED
-                : events.COMMUNITY_PRIORITY_SUPPORT_DISABLED,
-              context: { communityId },
-            });
-          }
-          default: {
-            break;
-          }
-        }
+    .then(result => result.changes[0].new_val || result.changes[0].old_val);
+};
 
-        return result.changes[0].new_val || result.changes[0].old_val;
-      }
-      return { id: communityId };
-    });
+const getUpdatedCommunitiesChangefeed = () =>
+  db
+    .table('communities')
+    .changes({
+      includeInitial: false,
+    })('new_val')
+    .run();
+
+export const listenToUpdatedCommunities = (cb: Function): Function => {
+  return createChangefeed(
+    getUpdatedCommunitiesChangefeed,
+    cb,
+    'listenToUpdatedCommunities'
+  );
 };

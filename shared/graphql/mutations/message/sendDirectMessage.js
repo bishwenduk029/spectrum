@@ -1,7 +1,7 @@
 // @flow
 import gql from 'graphql-tag';
 import { graphql } from 'react-apollo';
-import { btoa } from 'abab';
+import { btoa } from 'b2a';
 import messageInfoFragment from '../../fragments/message/messageInfo';
 import type { MessageInfoType } from '../../fragments/message/messageInfo';
 import { getDMThreadMessageConnectionQuery } from '../../queries/directMessageThread/getDirectMessageThreadMessageConnection';
@@ -38,6 +38,8 @@ const sendDirectMessageOptions = {
             id: fakeId,
             timestamp: JSON.parse(JSON.stringify(new Date())),
             messageType: message.messageType,
+            modifiedAt: '',
+            bot: false,
             author: {
               user: {
                 ...ownProps.currentUser,
@@ -71,11 +73,12 @@ const sendDirectMessageOptions = {
           },
         },
         update: (store, { data: { addMessage } }) => {
+          const threadId = ownProps.threadId || ownProps.id || ownProps.thread;
           // Read the data from our cache for this query.
           const data = store.readQuery({
             query: getDMThreadMessageConnectionQuery,
             variables: {
-              id: ownProps.thread || ownProps.id,
+              id: threadId,
             },
           });
 
@@ -126,7 +129,7 @@ const sendDirectMessageOptions = {
             query: getDMThreadMessageConnectionQuery,
             data,
             variables: {
-              id: ownProps.thread,
+              id: threadId,
             },
           });
         },

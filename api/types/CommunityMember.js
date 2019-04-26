@@ -1,6 +1,6 @@
 // @flow
 const CommunityMember = /* GraphQL */ `
-  type CommunityMember {
+  type CommunityMember @cacheControl(maxAge: 600) {
     id: ID!
     user: User!
     roles: [String]
@@ -10,14 +10,19 @@ const CommunityMember = /* GraphQL */ `
     isBlocked: Boolean
     isPending: Boolean
     reputation: Int
+    lastSeen: Date
   }
 
   extend type Query {
-    communityMember(userId: ID!, communityId: ID!): CommunityMember		
+    communityMember(userId: ID!, communityId: ID!): CommunityMember
   }
 
   input AddCommunityMemberInput {
     communityId: ID!
+  }
+
+  input AddCommunityMembersInput {
+    communityIds: [ID!]
   }
 
   input RemoveCommunityMemberInput {
@@ -63,20 +68,31 @@ const CommunityMember = /* GraphQL */ `
   }
 
   input AddCommunityMemberWithTokenInput {
-		communitySlug: LowercaseString!
-		token: String!
-	}
+    communitySlug: LowercaseString!
+    token: String!
+  }
 
   extend type Mutation {
     addCommunityMember(input: AddCommunityMemberInput!): Community
-    addCommunityMemberWithToken(input: AddCommunityMemberWithTokenInput!): Community
+    addCommunityMembers(input: AddCommunityMembersInput!): [Community]
+    addCommunityMemberWithToken(
+      input: AddCommunityMemberWithTokenInput!
+    ): Community
     addPendingCommunityMember(input: AddPendingCommunityMemberInput!): Community
-    removePendingCommunityMember(input: RemovePendingCommunityMemberInput!): Community
-    approvePendingCommunityMember(input: ApprovePendingCommunityMemberInput!): CommunityMember
-    blockPendingCommunityMember(input: BlockPendingCommunityMemberInput!): CommunityMember
+    removePendingCommunityMember(
+      input: RemovePendingCommunityMemberInput!
+    ): Community
+    approvePendingCommunityMember(
+      input: ApprovePendingCommunityMemberInput!
+    ): CommunityMember
+    blockPendingCommunityMember(
+      input: BlockPendingCommunityMemberInput!
+    ): CommunityMember
     removeCommunityMember(input: RemoveCommunityMemberInput!): Community
     addCommunityModerator(input: AddCommunityModeratorInput!): CommunityMember
-    removeCommunityModerator(input: RemoveCommunityModeratorInput!): CommunityMember
+    removeCommunityModerator(
+      input: RemoveCommunityModeratorInput!
+    ): CommunityMember
     blockCommunityMember(input: BlockCommunityMemberInput!): CommunityMember
     unblockCommunityMember(input: UnblockCommunityMemberInput!): CommunityMember
   }

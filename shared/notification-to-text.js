@@ -1,8 +1,7 @@
-import onlyContainsEmoji from 'shared/only-contains-emoji';
 import sentencify from 'shared/sentencify';
-import { timeDifferenceShort } from 'shared/time-difference';
 import sortByDate from 'shared/sort-by-date';
-import { toState, toPlainText } from 'shared/draft-utils';
+import { messageTypeObj } from 'shared/draft-utils/message-types';
+import { toPlainText } from 'shared/clients/draft-js/utils/plaintext';
 
 const sortThreads = (entities, currentUser) => {
   // filter out the current user's threads
@@ -16,13 +15,6 @@ const sortThreads = (entities, currentUser) => {
   return threads;
 };
 
-// parse date => modifiedAt to timeAgo
-const parseNotificationDate = date => {
-  const now = new Date().getTime();
-  const timestamp = new Date(date).getTime();
-  return timeDifferenceShort(now, timestamp);
-};
-
 export const parseActors = (actors, currentUser) => {
   const filteredActors = actors
     .filter(actor => actor.id !== currentUser.id)
@@ -31,12 +23,13 @@ export const parseActors = (actors, currentUser) => {
 };
 
 const EVENT_VERB = {
-  MESSAGE_CREATED: 'replied',
+  MESSAGE_CREATED: 'replied in',
   REACTION_CREATED: 'liked',
   CHANNEL_CREATED: 'created in',
   USER_JOINED_COMMUNITY: 'joined',
   MENTION_MESSAGE: 'mentioned you in',
   MENTION_THREAD: 'mentioned you in',
+  THREAD_REACTION_CREATED: 'liked',
 };
 
 const contextToString = (context, currentUser) => {
@@ -45,11 +38,14 @@ const contextToString = (context, currentUser) => {
     case 'THREAD': {
       const payload = context.payload;
       const isCreator = payload.creatorId === currentUser.id;
-      const str = isCreator ? 'in your thread' : 'in';
+      const str = isCreator ? 'your thread' : '';
       return `${str} ${payload.content.title}`;
     }
     case 'DIRECT_MESSAGE_THREAD': {
       return 'in a direct message thread';
+    }
+    case 'THREAD_REACTION': {
+      return 'your thread';
     }
     case 'MESSAGE':
       return 'your reply';
@@ -57,6 +53,8 @@ const contextToString = (context, currentUser) => {
       return context.payload.name;
     case 'CHANNEL':
       return context.payload.name;
+    default:
+      return;
   }
 };
 
@@ -82,9 +80,12 @@ const parseNotification = notification => {
   };
 };
 
-const formatNotification = (incomingNotification, currentUserId) => {
+const formatNotification = (
+  incomingNotification,
+  currentUserId,
+  isDesktop = false
+) => {
   const notification = parseNotification(incomingNotification);
-
   const actors =
     notification.actors &&
     parseActors(notification.actors, { id: currentUserId });
@@ -92,8 +93,6 @@ const formatNotification = (incomingNotification, currentUserId) => {
   const context =
     notification.context &&
     contextToString(notification.context, { id: currentUserId });
-  const date =
-    notification.modifiedAt && parseNotificationDate(notification.modifiedAt);
 
   let title = `${actors} ${event} ${context}`;
   let href, body;
@@ -111,14 +110,11 @@ const formatNotification = (incomingNotification, currentUserId) => {
       }
       body = sentencify(
         entities.map(({ payload }) => {
-          if (payload.messageType === 'draftjs') {
+          if (payload.messageType === messageTypeObj.draftjs) {
             let body = payload.content.body;
             if (typeof body === 'string')
               body = JSON.parse(payload.content.body);
-            return `"${toPlainText(toState(body)).replace(
-              /[ \n\r\v]+/g,
-              ' '
-            )}"`;
+            return `"${toPlainText(body).replace(/[ \n\r\v]+/g, ' ')}"`;
           }
 
           return `"${payload.content.body.replace(/[ \n\r\v]+/g, ' ')}"`;
@@ -127,14 +123,12 @@ const formatNotification = (incomingNotification, currentUserId) => {
       break;
     }
     case 'MESSAGE_CREATED': {
-      const entities = notification.entities.filter(
+      let entities = notification.entities.filter(
         ({ payload }) => payload.senderId !== currentUserId
       );
 
       if (notification.context.type === 'DIRECT_MESSAGE_THREAD') {
-        title = `New ${
-          entities.length > 1 ? 'replies' : 'reply'
-        } in a direct message thread`;
+        title = `${actors} replied in your direct message thread`;
         href = `/messages/${notification.context.id}`;
       } else {
         title = `${notification.context.payload.content.title} (${
@@ -142,33 +136,51 @@ const formatNotification = (incomingNotification, currentUserId) => {
         } new ${entities.length > 1 ? 'replies' : 'reply'})`;
         href = `/thread/${notification.context.id}`;
       }
+      // NOTE(@mxstbr): This is a workaround since MacOS desktop push notifications only show a single line of body
+      // so we reverse all the messages so the latest one is always shown
+      if (isDesktop) {
+        entities = entities.reverse();
+      }
       body = entities
         .map(({ payload }) => {
           const sender = notification.actors.find(
             actor => payload.senderId === actor.id
           );
-          if (payload.messageType === 'draftjs') {
+
+          if (payload.messageType === messageTypeObj.draftjs) {
             let body = payload.content.body;
             if (typeof body === 'string')
               body = JSON.parse(payload.content.body);
             return `${sender.payload.name} (@${
               sender.payload.username
-            }): ${toPlainText(toState(body))}`;
+            }): ${toPlainText(body)}`;
           }
 
-          return `${sender.payload.name}: ${payload.content.body}`;
+          return `${sender.payload.name}: ${
+            payload.messageType === messageTypeObj.media
+              ? '📷 Photo'
+              : payload.content.body
+          }`;
         })
         .join('\n');
       break;
     }
     case 'REACTION_CREATED': {
       const message = notification.context.payload;
-
       href = `/thread/${message.threadId}`;
       body =
-        message.messageType === 'draftjs'
-          ? toPlainText(toState(message.content.body))
+        message.messageType.toLowerCase() === messageTypeObj.draftjs
+          ? `${toPlainText(JSON.parse(message.content.body))}`
           : message.content.body;
+      break;
+    }
+    case 'THREAD_REACTION_CREATED': {
+      const thread = notification.context.payload;
+      href = `/thread/${thread.id}`;
+      body =
+        thread.type.toLowerCase() === messageTypeObj.draftjs
+          ? `${toPlainText(JSON.parse(thread.content.body))}`
+          : thread.content.body;
       break;
     }
     case 'CHANNEL_CREATED': {
@@ -187,6 +199,7 @@ const formatNotification = (incomingNotification, currentUserId) => {
       title = `${actors} ${event} ${context}`;
       break;
     }
+
     case 'MENTION_THREAD': {
       // sort and order the threads
       const threads = sortThreads(notification.entities, { id: currentUserId });
@@ -221,6 +234,8 @@ const formatNotification = (incomingNotification, currentUserId) => {
       title = `${actors} invited you to join their community, ${context}`;
       break;
     }
+    default:
+      return;
   }
 
   const data = href && {

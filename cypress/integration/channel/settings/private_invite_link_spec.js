@@ -13,18 +13,16 @@ const enable = () => {
 
   cy.get('[data-cy="login-with-token-settings"]').scrollIntoView();
 
-  cy
-    .get('[data-cy="toggle-token-link-invites-unchecked"]')
-    .should('be.visible')
-    .click();
+  cy.get('[data-cy="toggle-token-link-invites-unchecked"]').click();
 
   cy.get('[data-cy="join-link-input"]').should('be.visible');
 };
 
 describe('private channel invite link settings', () => {
   beforeEach(() => {
-    cy.auth(ownerInChannelId);
-    cy.visit(`/${community.slug}/${channel.slug}/settings`);
+    cy.auth(ownerInChannelId).then(() =>
+      cy.visit(`/${community.slug}/${channel.slug}/settings`)
+    );
   });
 
   it('should handle enable, reset, and disable', () => {
@@ -33,8 +31,7 @@ describe('private channel invite link settings', () => {
 
     // reset token
     cy.get('[data-cy="login-with-token-settings"]').scrollIntoView();
-    cy
-      .get('[data-cy="join-link-input"]')
+    cy.get('[data-cy="join-link-input"]')
       .invoke('val')
       .then(val1 => {
         // do more work here
@@ -46,17 +43,13 @@ describe('private channel invite link settings', () => {
 
         // grab the input again and compare its previous value
         // to the current value
-        cy
-          .get('[data-cy="join-link-input"]')
+        cy.get('[data-cy="join-link-input"]')
           .invoke('val')
           .should('not.eq', val1);
       });
 
     // disable
-    cy
-      .get('[data-cy="toggle-token-link-invites-checked"]')
-      .should('be.visible')
-      .click();
+    cy.get('[data-cy="toggle-token-link-invites-checked"]').click();
 
     cy.get('[data-cy="join-link-input"]').should('not.be.visible');
   });

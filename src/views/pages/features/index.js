@@ -2,12 +2,11 @@
 import * as React from 'react';
 import Section from 'src/components/themedSection';
 import PageFooter from '../components/footer';
-import Link from 'src/components/link';
-import Icon from 'src/components/icons';
+import Icon from 'src/components/icon';
 import { Easy, Happy, Impact, Ideas } from 'src/components/illustrations';
 import { Wrapper } from '../style';
 import { Heading, Copy } from '../pricing/style';
-import { Button } from 'src/components/buttons';
+import { PrimaryButton } from 'src/components/button';
 import {
   Intro,
   TextContent,
@@ -25,6 +24,7 @@ import {
 } from './style';
 import type { ContextRouter } from 'react-router';
 import { track, events } from 'src/helpers/analytics';
+import Head from 'src/components/head';
 
 type Props = {
   ...$Exact<ContextRouter>,
@@ -42,6 +42,8 @@ class Features extends React.Component<Props, State> {
   render() {
     return (
       <Wrapper data-cy="features-page">
+        <Head title={'Spectrum · Features'} />
+
         <Section background={'blank'} goop={1} color={'brand.alt'}>
           <Intro>
             <TextContent>
@@ -53,18 +55,14 @@ class Features extends React.Component<Props, State> {
                 organically, moderate it effectively, and measure its ROI for
                 your organization.
               </Copy>
-              <Link to={`/new/community`}>
-                <Button
-                  icon="welcome"
-                  onClick={() =>
-                    track(events.FEATURES_PAGE_GET_STARTED_CLICKED)
-                  }
-                >
-                  Get started
-                </Button>
-              </Link>
+              <PrimaryButton
+                to={'/new/community'}
+                onClick={() => track(events.FEATURES_PAGE_GET_STARTED_CLICKED)}
+              >
+                Get started
+              </PrimaryButton>
             </TextContent>
-            <Waterfall src="https://spectrum.imgix.net/marketing/waterfall.png?h=0.25&dpr=2&auto=compress,format" />
+            <Waterfall src="/img/waterfall.png" />
           </Intro>
         </Section>
         <Section background={'brand'} goop={3} color={'space.alt'}>
@@ -81,7 +79,7 @@ class Features extends React.Component<Props, State> {
                 <FeatureName>Finally, chat that scales</FeatureName>
                 <FeatureCopy>
                   <p>
-                    We've taken the best features of modern chat platforms and
+                    We’ve taken the best features of modern chat platforms and
                     old-school forums and smashed them together into a format
                     that makes it easy scale to any size - even across
                     timezones.
@@ -143,7 +141,7 @@ class Features extends React.Component<Props, State> {
                 <FeatureName>Real members. Real reputation.</FeatureName>
                 <FeatureCopy>
                   <p>
-                    With Spectrum's Rep system, you can see how active and
+                    With Spectrum’s Rep system, you can see how active and
                     constructive a member is in your community - and globally
                     across communities - which makes it simple to figure out if
                     an issue is a trend or an isolated incident.
@@ -178,15 +176,15 @@ class Features extends React.Component<Props, State> {
               <Heading>Focus on impact, not usage.</Heading>
               <Feature>
                 <Icon glyph="like" size="48" />
-                <FeatureName>Understand your community's health</FeatureName>
+                <FeatureName>Understand your community’s health</FeatureName>
                 <FeatureCopy>
                   <p>
-                    When you add Community Analytics to your community, you'll
-                    get a bird's eye view of your community's overall growth and
+                    When you add Community Analytics to your community, you’ll
+                    get a bird’s eye view of your community’s overall growth and
                     user engagement.
                   </p>
                   <p>
-                    You'll also get a heads up of what types of conversations
+                    You’ll also get a heads up of what types of conversations
                     are most active as well as a list of any that have gone
                     unanswered.
                   </p>
@@ -208,7 +206,7 @@ class Features extends React.Component<Props, State> {
               <Feature>
                 <Icon glyph="analytics" size="48" />
                 <FeatureName comingSoon bright>
-                  Visualize your community's ROI
+                  Visualize your community’s ROI
                 </FeatureName>
                 <FeatureCopy>
                   <p>
@@ -253,7 +251,7 @@ class Features extends React.Component<Props, State> {
                 <FeatureName>Collect actionable feedback and ideas</FeatureName>
                 <FeatureCopy>
                   <p>
-                    Spectrum's great for collecting feature requests and user
+                    Spectrum’s great for collecting feature requests and user
                     feedback, and the realtime nature makes it easy for the
                     requests to adapt as you update your product.
                   </p>
@@ -282,7 +280,7 @@ class Features extends React.Component<Props, State> {
         </Section>
         <Section background={'default'} goop={4} color={'bg.reverse'}>
           <EtcGrid>
-            <Heading>And there's a whole lot more to love...</Heading>
+            <Heading>And there’s a whole lot more to love...</Heading>
             <EtcFeature color="success.alt">
               <Icon glyph="thread" />
               <EtcName>Unlimited chat</EtcName>
@@ -334,14 +332,12 @@ class Features extends React.Component<Props, State> {
           </EtcGrid>
           <EtcCTA>
             <EtcName>What are you waiting for?</EtcName>
-            <Link to={`/new/community`}>
-              <Button
-                icon="welcome"
-                onClick={() => track(events.FEATURES_PAGE_GET_STARTED_CLICKED)}
-              >
-                Get started
-              </Button>
-            </Link>
+            <PrimaryButton
+              to={'/new/community'}
+              onClick={() => track(events.FEATURES_PAGE_GET_STARTED_CLICKED)}
+            >
+              Get started
+            </PrimaryButton>
           </EtcCTA>
         </Section>
         <PageFooter />

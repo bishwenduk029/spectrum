@@ -5,11 +5,12 @@ import {
   FooterGrid,
   Masthead,
   Support,
+  Apps,
   Safety,
   SocialLinks,
 } from '../style';
-import Link from 'src/components/link';
-import { IconButton } from 'src/components/buttons';
+import { Link } from 'react-router-dom';
+import Icon from 'src/components/icon';
 import { Logo } from 'src/components/logo';
 import { track, events } from 'src/helpers/analytics';
 
@@ -27,17 +28,21 @@ export default () => {
               target="_blank"
               rel="noopener noreferrer"
             >
-              <IconButton glyph="github" hoverColor={'text.reverse'} />
+              <Icon glyph="github" hoverColor={'text.reverse'} />
             </a>
             <a
               href="https://twitter.com/withspectrum"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <IconButton glyph="twitter" hoverColor={'text.reverse'} />
+              <Icon glyph="twitter" hoverColor={'text.reverse'} />
             </a>
           </SocialLinks>
         </Masthead>
+        <Apps>
+          <span>Apps</span>
+          <Link to={`/apps`}>Mac</Link>
+        </Apps>
         <Support>
           <span>Support</span>
           <Link to={`/spectrum`}>Community</Link>

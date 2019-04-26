@@ -10,16 +10,14 @@ import {
   DropdownSectionDivider,
   DropdownSection,
   DropdownSectionSubtitle,
-  DropdownSectionCardInfo,
   DropdownSectionText,
   DropdownSectionTitle,
   DropdownAction,
-} from '../../../components/settingsViews/style';
-import Icon from '../../../components/icons';
-import { Spinner } from '../../../components/globals';
-import { openModal } from 'src/actions/modals';
-import { initNewThreadWithUser } from '../../../actions/directMessageThreads';
-import OutsideClickHandler from '../../../components/outsideClickHandler';
+} from 'src/components/settingsViews/style';
+import Icon from 'src/components/icon';
+import { Spinner } from 'src/components/globals';
+import InitDirectMessageWrapper from 'src/components/initDirectMessageWrapper';
+import OutsideClickHandler from 'src/components/outsideClickHandler';
 import addCommunityModerator from 'shared/graphql/mutations/communityMember/addCommunityModerator';
 import removeCommunityModerator from 'shared/graphql/mutations/communityMember/removeCommunityModerator';
 import blockCommunityMember from 'shared/graphql/mutations/communityMember/blockCommunityMember';
@@ -28,7 +26,6 @@ import approvePendingCommunityMember from 'shared/graphql/mutations/communityMem
 import blockPendingCommunityMember from 'shared/graphql/mutations/communityMember/blockPendingCommunityMember';
 import type { GetCommunitySettingsType } from 'shared/graphql/queries/community/getCommunitySettings';
 import MutationWrapper from './mutationWrapper';
-import { getCardImage } from '../../communityBilling/utils';
 import type { Dispatch } from 'redux';
 
 type Props = {
@@ -74,10 +71,9 @@ class EditDropdown extends React.Component<Props, State> {
     },
     moderator: {
       id: 'moderator',
-      title: this.props.community.hasChargeableSource
-        ? 'Moderator · $10/mo'
-        : 'Moderator',
-      subtitle: 'Can edit and delete conversations',
+      title: 'Team member',
+      subtitle:
+        'Highlighted across the community, and can moderate conversations',
       selected: false,
     },
     blocked: {
@@ -109,13 +105,8 @@ class EditDropdown extends React.Component<Props, State> {
     },
   };
 
-  initMessage = () => {
-    this.props.dispatch(initNewThreadWithUser(this.props.user));
-    return this.props.history.push('/messages/new');
-  };
-
   getRolesConfiguration = () => {
-    const { permissions, community } = this.props;
+    const { permissions } = this.props;
 
     if (permissions.isOwner) {
       return [
@@ -148,10 +139,7 @@ class EditDropdown extends React.Component<Props, State> {
       return [
         {
           ...this.permissionConfigurations.moderator,
-          mutation: community.hasChargeableSource
-            ? this.props.addCommunityModerator
-            : null,
-          onClick: this.initUpgrade,
+          mutation: this.props.addCommunityModerator,
         },
         {
           ...this.permissionConfigurations.member,
@@ -169,10 +157,7 @@ class EditDropdown extends React.Component<Props, State> {
       return [
         {
           ...this.permissionConfigurations.moderator,
-          mutation: community.hasChargeableSource
-            ? this.props.addCommunityModerator
-            : null,
-          onClick: this.initUpgrade,
+          mutation: this.props.addCommunityModerator,
         },
         {
           ...this.permissionConfigurations.member,
@@ -201,48 +186,11 @@ class EditDropdown extends React.Component<Props, State> {
   };
 
   toggleOpen = () => this.setState({ isOpen: true });
+
   close = () => this.setState({ isOpen: false });
-  initUpgrade = () => {
-    if (!this.props.community.billingSettings.administratorEmail) {
-      return this.props.dispatch(
-        openModal('ADMIN_EMAIL_ADDRESS_VERIFICATION_MODAL', {
-          id: this.props.community.id,
-        })
-      );
-    }
-
-    return this.props.dispatch(
-      openModal('UPGRADE_MODERATOR_SEAT_MODAL', {
-        input: this.input,
-        community: this.props.community,
-      })
-    );
-  };
-
-  getDefaultCardInfo = () => {
-    const { community } = this.props;
-    const sources = community.billingSettings.sources;
-    if (!sources || sources.length === 0) return null;
-    const defaultSource = sources.find(source => source.isDefault);
-    if (!defaultSource) return null;
-    return (
-      <DropdownSectionCardInfo>
-        <img
-          alt={`${defaultSource.card.brand} ending in ${
-            defaultSource.card.last4
-          }`}
-          src={getCardImage(defaultSource.card.brand)}
-          width={24}
-        />
-        <span>
-          Pay with {defaultSource.card.brand} ending in{' '}
-          {defaultSource.card.last4}
-        </span>
-      </DropdownSectionCardInfo>
-    );
-  };
 
   render() {
+    const { user } = this.props;
     const { isOpen } = this.state;
     const configuration = this.getRolesConfiguration();
 
@@ -253,19 +201,21 @@ class EditDropdown extends React.Component<Props, State> {
         {isOpen && (
           <OutsideClickHandler onOutsideClick={this.close}>
             <Dropdown>
-              <DropdownSection
-                style={{ borderBottom: '0' }}
-                onClick={this.initMessage}
-              >
-                <DropdownAction>
-                  <Icon glyph={'message'} size={'32'} />
-                </DropdownAction>
-                <DropdownSectionText>
-                  <DropdownSectionTitle>
-                    Send Direct Message
-                  </DropdownSectionTitle>
-                </DropdownSectionText>
-              </DropdownSection>
+              <InitDirectMessageWrapper
+                user={user}
+                render={
+                  <DropdownSection style={{ borderBottom: '0' }}>
+                    <DropdownAction>
+                      <Icon glyph={'message-simple-new'} size={'32'} />
+                    </DropdownAction>
+                    <DropdownSectionText>
+                      <DropdownSectionTitle>
+                        Send Direct Message
+                      </DropdownSectionTitle>
+                    </DropdownSectionText>
+                  </DropdownSection>
+                }
+              />
 
               <DropdownSectionDivider />
 
@@ -296,9 +246,6 @@ class EditDropdown extends React.Component<Props, State> {
                             <DropdownSectionSubtitle>
                               {role.subtitle}
                             </DropdownSectionSubtitle>
-
-                            {role.id === 'moderator' &&
-                              this.getDefaultCardInfo()}
                           </DropdownSectionText>
                         </DropdownSection>
                       )}
@@ -319,8 +266,6 @@ class EditDropdown extends React.Component<Props, State> {
                         <DropdownSectionSubtitle>
                           {role.subtitle}
                         </DropdownSectionSubtitle>
-
-                        {role.id === 'moderator' && this.getDefaultCardInfo()}
                       </DropdownSectionText>
                     </DropdownSection>
                   );

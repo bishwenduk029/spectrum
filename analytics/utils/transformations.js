@@ -7,10 +7,11 @@ import type {
   DBThread,
   DBUser,
   DBReaction,
+  DBThreadReaction,
   DBMessage,
   DBUsersThreads,
 } from 'shared/types';
-import { getTruthyValuesFromObject } from './truthy-values';
+import { getTruthyValuesFromObject } from 'shared/truthy-values';
 
 type AnalyticsChannel = {
   id: ?string,
@@ -47,7 +48,7 @@ type AnalyticsThreadPermissions = {
 };
 
 type AnalyticsUser = {
-  createdAt: string,
+  createdAt: ?string,
   twitterAuthed: boolean,
   fbAuthed: boolean,
   githubAuthed: boolean,
@@ -61,6 +62,11 @@ type AnalyticsReaction = {
   type: ?string,
 };
 
+type AnalyticsThreadReaction = {
+  id: ?string,
+  type: ?string,
+};
+
 type AnalyticsMessage = {
   id: ?string,
   threadType: ?string,
@@ -68,11 +74,28 @@ type AnalyticsMessage = {
 };
 
 export const analyticsReaction = (reaction: ?DBReaction): AnalyticsReaction => {
-  if (!reaction)
+  if (!reaction) {
     return {
       id: null,
       type: null,
     };
+  }
+
+  return {
+    id: reaction.id,
+    type: reaction.type,
+  };
+};
+
+export const analyticsThreadReaction = (
+  reaction: ?DBThreadReaction
+): AnalyticsThreadReaction => {
+  if (!reaction) {
+    return {
+      id: null,
+      type: null,
+    };
+  }
 
   return {
     id: reaction.id,
@@ -81,12 +104,13 @@ export const analyticsReaction = (reaction: ?DBReaction): AnalyticsReaction => {
 };
 
 export const analyticsMessage = (message: ?DBMessage): AnalyticsMessage => {
-  if (!message)
+  if (!message) {
     return {
       id: null,
       threadType: null,
       parentId: null,
     };
+  }
 
   return {
     id: message.id,
@@ -96,7 +120,7 @@ export const analyticsMessage = (message: ?DBMessage): AnalyticsMessage => {
 };
 
 export const analyticsChannel = (channel: ?DBChannel): AnalyticsChannel => {
-  if (!channel)
+  if (!channel) {
     return {
       id: null,
       name: null,
@@ -104,6 +128,7 @@ export const analyticsChannel = (channel: ?DBChannel): AnalyticsChannel => {
       isPrivate: null,
       isArchived: null,
     };
+  }
 
   return {
     id: channel.id,
@@ -130,13 +155,14 @@ export const analyticsChannelPermissions = (
 export const analyticsCommunity = (
   community: DBCommunity
 ): AnalyticsCommunity => {
-  if (!community)
+  if (!community) {
     return {
       id: null,
       name: null,
       slug: null,
       isPrivate: false,
     };
+  }
 
   return {
     id: community.id,
@@ -149,11 +175,12 @@ export const analyticsCommunity = (
 export const analyticsCommunityPermissions = (
   communityPermissions: DBUsersCommunities
 ): AnalyticsCommunityPermissions => {
-  if (!communityPermissions)
+  if (!communityPermissions) {
     return {
       roles: [],
       reputation: 0,
     };
+  }
 
   return {
     roles: getTruthyValuesFromObject(communityPermissions),
@@ -162,12 +189,13 @@ export const analyticsCommunityPermissions = (
 };
 
 export const analyticsThread = (thread: ?DBThread): AnalyticsThread => {
-  if (!thread)
+  if (!thread) {
     return {
       id: null,
       isLocked: null,
       isWatercooler: null,
     };
+  }
 
   return {
     id: thread.id,
@@ -193,6 +221,17 @@ export const analyticsThreadPermissions = (
 };
 
 export const analyticsUser = (user: DBUser): AnalyticsUser => {
+  if (!user) {
+    return {
+      createdAt: null,
+      twitterAuthed: false,
+      fbAuthed: false,
+      githubAuthed: false,
+      googleAuthed: false,
+      hasUsername: false,
+      lastSeen: null,
+    };
+  }
   return {
     createdAt: user.createdAt,
     twitterAuthed: user.providerId ? true : false,

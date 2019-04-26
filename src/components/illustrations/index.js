@@ -1,7 +1,9 @@
 // @flow
+import theme from 'shared/theme';
 import React from 'react';
 import styled from 'styled-components';
 import { zIndex } from '../globals';
+import { MEDIA_BREAK } from 'src/components/layout';
 
 export const Cluster = styled.img`
   position: absolute;
@@ -61,12 +63,12 @@ export const ConversationWrapper = styled.div`
 
   max-width: 480px;
   overflow-y: hidden;
-  box-shadow: 0 0 32px 24px ${props => props.theme.bg.default};
+  box-shadow: 0 0 32px 24px ${theme.bg.default};
   display: inline-block;
   align-items: center;
   justify-content: center;
 
-  @media (max-width: 768px) {
+  @media (max-width: ${MEDIA_BREAK}px) {
     display: none;
   }
 
@@ -80,7 +82,7 @@ export const ConversationWrapper = styled.div`
   + div {
     margin-left: 48px;
 
-    @media (max-width: 768px) {
+    @media (max-width: ${MEDIA_BREAK}px) {
       margin-left: 0;
       margin-bottom: 32px;
     }
@@ -100,7 +102,7 @@ const DiscoverImage = styled.img`
   height: auto;
   object-fit: contain;
 
-  @media (max-width: 768px) {
+  @media (max-width: ${MEDIA_BREAK}px) {
     left: auto;
     margin-top: 32px;
     max-width: 100%;

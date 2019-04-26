@@ -1,5 +1,5 @@
 // @flow
-const { db } = require('./db');
+const { db } = require('shared/db');
 import { NEW_DOCUMENTS } from './utils';
 import { createChangefeed } from 'shared/changefeed-utils';
 import type { DBNotification } from 'shared/types';
@@ -76,8 +76,7 @@ const getNewNotificationsChangefeed = () =>
     .table('usersNotifications')
     .changes({
       includeInitial: false,
-    })
-    .filter(NEW_DOCUMENTS.or(ENTITY_ADDED))('new_val')
+    })('new_val')
     .eqJoin('notificationId', db.table('notifications'))
     .without({
       left: ['notificationId', 'createdAt', 'id', 'entityAddedAt'],

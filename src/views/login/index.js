@@ -1,10 +1,12 @@
 // @flow
 import * as React from 'react';
 import { withRouter } from 'react-router';
+import { connect } from 'react-redux';
 import compose from 'recompose/compose';
-import Icon from '../../components/icons';
-import FullscreenView from '../../components/fullscreenView';
-import LoginButtonSet from '../../components/loginButtonSet';
+import { Link } from 'react-router-dom';
+import Icon from 'src/components/icon';
+import FullscreenView from 'src/components/fullscreenView';
+import LoginButtonSet from 'src/components/loginButtonSet';
 import {
   LargeTitle,
   LargeSubtitle,
@@ -14,17 +16,23 @@ import {
 } from './style';
 import queryString from 'query-string';
 import { track, events } from 'src/helpers/analytics';
+import { CLIENT_URL } from 'src/api/constants';
+import { setTitlebarProps } from 'src/actions/titlebar';
 
 type Props = {
   redirectPath: ?string,
   signinType?: ?string,
   close?: Function,
   location?: Object,
+  dispatch: Function,
 };
 
-export class Login extends React.Component<Props> {
+class Login extends React.Component<Props> {
   componentDidMount() {
     let redirectPath;
+    const { dispatch } = this.props;
+    dispatch(setTitlebarProps({ title: 'Login' }));
+
     if (this.props.location) {
       const searchObj = queryString.parse(this.props.location.search);
       redirectPath = searchObj.r;
@@ -45,12 +53,7 @@ export class Login extends React.Component<Props> {
         : 'Spectrum is a place where communities can share, discuss, and grow together. Sign in below to get in on the conversation.';
 
     return (
-      <FullscreenView
-        hasBackground
-        // $FlowFixMe
-        noCloseButton={!this.props.close}
-        close={this.props.close && this.props.close}
-      >
+      <FullscreenView closePath={CLIENT_URL}>
         <FullscreenContent
           data-cy="login-page"
           style={{ justifyContent: 'center' }}
@@ -75,6 +78,8 @@ export class Login extends React.Component<Props> {
             >
               Code of Conduct
             </a>
+            , <Link to={'/privacy'}>Privacy Policy</Link> and{' '}
+            <Link to={'/terms'}>Terms of Service</Link>.
           </CodeOfConduct>
         </FullscreenContent>
       </FullscreenView>
@@ -82,4 +87,7 @@ export class Login extends React.Component<Props> {
   }
 }
 
-export default compose(withRouter)(Login);
+export default compose(
+  withRouter,
+  connect()
+)(Login);
